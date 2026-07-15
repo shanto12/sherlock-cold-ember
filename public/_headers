@@ -1,0 +1,10 @@
+# Content-hashed application bundles and production audio are immutable.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/audio/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Narrative images use a bounded stale-while-revalidate policy.
+/scenes/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800

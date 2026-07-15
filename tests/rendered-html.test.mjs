@@ -100,4 +100,14 @@ test("ships the original media, Netlify form detector, and no starter surface", 
   const hosting = await readFile(new URL(".openai/hosting.json", projectRoot), "utf8");
   assert.match(hosting, /"d1": null/);
   assert.match(hosting, /"r2": null/);
+
+  const sourceHeaders = await readFile(new URL("../public/_headers", import.meta.url), "utf8");
+  const builtHeaders = await readFile(new URL("../dist/client/_headers", import.meta.url), "utf8");
+  for (const headers of [sourceHeaders, builtHeaders]) {
+    assert.match(headers, /\/assets\/\*/);
+    assert.match(headers, /\/audio\/\*/);
+    assert.match(headers, /max-age=31536000, immutable/);
+    assert.match(headers, /\/scenes\/\*/);
+    assert.match(headers, /stale-while-revalidate=604800/);
+  }
 });
