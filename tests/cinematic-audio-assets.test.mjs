@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join, relative } from "node:path";
 import test from "node:test";
 
@@ -84,9 +84,14 @@ test("matches every public audio file to its declared SHA-256 and size", () => {
     assert.match(url, /^\/audio\/cinematic\/[a-z0-9/_.-]+\.[a-f0-9]{12}\.mp3$/i);
     assert.ok(url.endsWith(`.${metadata.sha256.slice(0, 12)}.mp3`));
     const path = join(root, "public", url);
-    assert.equal(existsSync(path), true, `${url} should exist`);
-    assert.equal(statSync(path).size, metadata.sizeBytes, `${url} size should match`);
-    const digest = createHash("sha256").update(readFileSync(path)).digest("hex");
+    let audio;
+    try {
+      audio = readFileSync(path);
+    } catch (error) {
+      assert.fail(`${url} should be readable: ${error instanceof Error ? error.message : error}`);
+    }
+    assert.equal(audio.length, metadata.sizeBytes, `${url} size should match`);
+    const digest = createHash("sha256").update(audio).digest("hex");
     assert.equal(digest, metadata.sha256, `${url} hash should match`);
     totalBytes += metadata.sizeBytes;
   }

@@ -3,13 +3,16 @@
 /** Aligns each finished scene master against its authored transcript. */
 
 import { execFileSync } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { randomUUID } from "node:crypto";
+import { closeSync, fsyncSync, openSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
-const candidatePath = join(root, "work/audio/cinematic/cinematic-audio-manifest.json");
-const reportPath = join(root, "work/audio/cinematic/forced-alignment.json");
+const workRoot = join(root, "work/audio/cinematic");
+const publicRoot = join(root, "public");
+const candidatePath = join(workRoot, "cinematic-audio-manifest.json");
+const reportPath = join(workRoot, "forced-alignment.json");
 const manifest = JSON.parse(readFileSync(candidatePath, "utf8"));
 const key = execFileSync(
   "/usr/bin/security",
@@ -26,10 +29,47 @@ const key = execFileSync(
 
 if (!/^sk_[A-Za-z0-9]+$/.test(key)) throw new Error("Keychain credential unavailable.");
 
+const finiteNonNegative = (value) => {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : null;
+};
+
+const assertContainedPath = (parent, path, label) => {
+  const child = relative(parent, path);
+  if (!child || child === ".." || child.startsWith(`..${sep}`) || isAbsolute(child)) {
+    throw new Error(`${label} escaped its allowed directory.`);
+  }
+};
+
+const writeReport = (path, data) => {
+  assertContainedPath(workRoot, path, "Alignment report");
+  const temporaryPath = join(dirname(path), `.${basename(path)}.${process.pid}.${randomUUID()}.tmp`);
+  let descriptor;
+  try {
+    descriptor = openSync(temporaryPath, "wx", 0o600);
+    writeFileSync(descriptor, data);
+    fsyncSync(descriptor);
+    closeSync(descriptor);
+    descriptor = undefined;
+    renameSync(temporaryPath, path);
+  } catch (error) {
+    if (descriptor !== undefined) closeSync(descriptor);
+    try {
+      unlinkSync(temporaryPath);
+    } catch (cleanupError) {
+      if (!cleanupError || typeof cleanupError !== "object" || cleanupError.code !== "ENOENT") {
+        throw cleanupError;
+      }
+    }
+    throw error;
+  }
+};
+
 const results = {};
 for (const [sceneId, scene] of Object.entries(manifest.scenes)) {
+  if (!/^[a-z0-9-]{1,80}$/.test(sceneId)) throw new Error(`Invalid scene id: ${sceneId}`);
   process.stdout.write(`Forced alignment: ${sceneId}\n`);
-  const audioPath = join(root, "public", scene.master.url);
+  const audioPath = resolve(publicRoot, `.${scene.master.url}`);
+  assertContainedPath(publicRoot, audioPath, `Scene ${sceneId} audio`);
   const transcript = scene.lines.map((line) => line.text).join(" ");
   const form = new FormData();
   form.append("file", new Blob([readFileSync(audioPath)], { type: "audio/mpeg" }), `${sceneId}.mp3`);
@@ -40,14 +80,32 @@ for (const [sceneId, scene] of Object.entries(manifest.scenes)) {
     body: form,
     signal: AbortSignal.timeout(180_000),
   });
+  if (new URL(response.url).origin !== "https://api.elevenlabs.io") {
+    throw new Error(`Forced alignment ${sceneId} redirected to an untrusted origin.`);
+  }
   if (!response.ok) {
     throw new Error(`Forced alignment ${sceneId} returned ${response.status}: ${(await response.text()).slice(0, 1000)}`);
   }
+  const contentType = response.headers.get("content-type")?.split(";", 1)[0].trim().toLowerCase();
+  if (contentType !== "application/json") {
+    throw new Error(`Forced alignment ${sceneId} returned unexpected content type ${contentType ?? "missing"}.`);
+  }
   const alignment = await response.json();
-  const words = alignment.words ?? [];
+  if (!Array.isArray(alignment.words)) {
+    throw new Error(`Forced alignment ${sceneId} returned no word array.`);
+  }
+  const words = alignment.words.map((word) => ({
+    start: finiteNonNegative(word?.start),
+    end: finiteNonNegative(word?.end),
+  }));
+  if (words.some((word) => word.start === null || word.end === null)) {
+    throw new Error(`Forced alignment ${sceneId} returned an invalid word timestamp.`);
+  }
+  const loss = finiteNonNegative(alignment.loss);
+  if (loss === null) throw new Error(`Forced alignment ${sceneId} returned an invalid loss value.`);
   results[sceneId] = {
     provider: "ElevenLabs Forced Alignment",
-    loss: Math.round(Number(alignment.loss) * 1_000_000) / 1_000_000,
+    loss: Math.round(loss * 1_000_000) / 1_000_000,
     wordsAligned: words.length,
     transcriptCharacters: transcript.length,
     firstWordStartSeconds: words[0]?.start ?? null,
@@ -62,5 +120,5 @@ for (const [sceneId, scene] of Object.entries(manifest.scenes)) {
   };
 }
 
-writeFileSync(reportPath, `${JSON.stringify(results, null, 2)}\n`);
+writeReport(reportPath, `${JSON.stringify(results, null, 2)}\n`);
 process.stdout.write(`Forced alignment passed for ${Object.keys(results).length} scene masters.\n`);
