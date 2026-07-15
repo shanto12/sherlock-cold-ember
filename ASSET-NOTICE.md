@@ -32,6 +32,14 @@ excerpts listed in [`docs/dialogue-sources.md`](./docs/dialogue-sources.md) are
 public-domain source text in the United States and are not claimed as original
 project writing.
 
+The five scene tableaux, their optimized AVIF derivatives, the social card,
+and the application icons are project-specific, AI-assisted original
+compositions selected and finished for *The Cold Ember*. They contain no
+third-party photography, actor likeness, franchise mark, copied book cover, or
+screen-adaptation asset. Exact filenames, dimensions, byte counts, SHA-256
+hashes, derivative relationships, and the visual no-likeness policy are
+recorded in [`docs/visual-assets.md`](./docs/visual-assets.md).
+
 Names and marks belonging to third parties remain the property of their
 respective owners. This independent project is not affiliated with or endorsed
 by ElevenLabs, any film or television production, publisher, platform, estate,

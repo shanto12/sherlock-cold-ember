@@ -1,0 +1,49 @@
+name: Accessibility report
+description: Report a keyboard, screen-reader, contrast, motion, caption, or touch-access issue.
+title: "[Accessibility]: "
+body:
+  - type: input
+    id: url
+    attributes:
+      label: Affected URL or scene
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Accessibility area
+      options:
+        - Keyboard or focus
+        - Screen reader or semantics
+        - Contrast or readability
+        - Reduced motion or animation
+        - Captions or audio control
+        - Touch target or mobile layout
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: impact
+    attributes:
+      label: Barrier and impact
+      description: Explain what task is blocked or made difficult.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+    validations:
+      required: true
+  - type: input
+    id: assistive_technology
+    attributes:
+      label: Browser, device, and assistive technology
+      placeholder: Safari, iPhone, VoiceOver
+    validations:
+      required: true
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested improvement
+      description: Optional; describe the behavior that would remove the barrier.
