@@ -40,7 +40,9 @@ July 15, 2026:
   production vulnerabilities.
 - The documentation/governance closeout added one byte-locked visual-provenance
   regression; the complete maintained gate then passed 9/9 tests, both builds,
-  and the production audit without changing browser runtime code.
+  and the production audit without changing browser runtime code. The first
+  maintenance-cycle hardening added two peer-grouping/cooldown regressions;
+  the maintained gate then passed 11/11 with the same non-runtime boundary.
 - Dialogue-source live checks: 4/4 passed, proving all five primary source URLs
   resolve and all seven credited excerpts occur in the linked public-domain
   text.

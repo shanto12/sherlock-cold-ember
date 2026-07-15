@@ -12,7 +12,7 @@ or provider voice identifier.
 | Immutable release | [`v1.2.0`](https://github.com/shanto12/sherlock-cold-ember/releases/tag/v1.2.0), published at 5:34:20 PM CDT |
 | Runtime source and tag target | [`8681e2c57d62f7acd3888ce53a623f15f1effecc`](https://github.com/shanto12/sherlock-cold-ember/commit/8681e2c57d62f7acd3888ce53a623f15f1effecc) |
 | Public source | https://github.com/shanto12/sherlock-cold-ember |
-| Feature, evidence, and hardening PRs | [#1](https://github.com/shanto12/sherlock-cold-ember/pull/1) default-on cinematic audio; [#2](https://github.com/shanto12/sherlock-cold-ember/pull/2) static cache policy; [#3](https://github.com/shanto12/sherlock-cold-ember/pull/3) Sites routing guard; [#4](https://github.com/shanto12/sherlock-cold-ember/pull/4) Sites media adapter; [#5](https://github.com/shanto12/sherlock-cold-ember/pull/5) enterprise evidence; [#6](https://github.com/shanto12/sherlock-cold-ember/pull/6) CodeQL/offline-provider hardening |
+| Feature, evidence, and hardening PRs | [#1](https://github.com/shanto12/sherlock-cold-ember/pull/1) default-on cinematic audio; [#2](https://github.com/shanto12/sherlock-cold-ember/pull/2) static cache policy; [#3](https://github.com/shanto12/sherlock-cold-ember/pull/3) Sites routing guard; [#4](https://github.com/shanto12/sherlock-cold-ember/pull/4) Sites media adapter; [#5](https://github.com/shanto12/sherlock-cold-ember/pull/5) enterprise evidence; [#6](https://github.com/shanto12/sherlock-cold-ember/pull/6) CodeQL/offline-provider hardening; [#7](https://github.com/shanto12/sherlock-cold-ember/pull/7) final evidence, provenance, and public governance |
 | Runtime release-quality CI | [Run `29455183900`](https://github.com/shanto12/sherlock-cold-ember/actions/runs/29455183900) — success on the exact runtime SHA; 0 annotations |
 | Runtime CodeQL | [Run `29455183310`](https://github.com/shanto12/sherlock-cold-ember/actions/runs/29455183310) — Actions and JavaScript/TypeScript succeeded; 0 annotations; 0 open alerts |
 | Netlify production | https://sherlock-cold-ember.netlify.app — deploy `6a580934077a4d3d9a244293`, published at 5:27:24 PM CDT |
@@ -38,8 +38,8 @@ governance files advance on `main`.
 | Requirement | Status | Verification method | Current production evidence |
 | --- | --- | --- | --- |
 | Public GitHub showcase | Pass | GitHub | Public repository, immutable release, source, tests, rights notices, audio/visual provenance, security policy, contribution guidance, and evidence are available without exposing a secret |
-| Pull-request and CI release path | Pass | GitHub + GitHub Actions | PRs #1–#6 passed protected PR/check gates; the exact runtime commit passed release-quality CI and both required CodeQL analyses |
-| Locked install, lint, strict typecheck, rendered tests, and both production builds | Pass | Local release gate + CI | `npm run verify` passed with 8/8 immutable-release tests; the post-release visual-provenance regression extends the maintained gate to 9/9 without changing runtime code |
+| Pull-request and CI release path | Pass | GitHub + GitHub Actions | PRs #1–#7 passed protected PR/check gates; the exact runtime commit passed release-quality CI and both CodeQL analyses |
+| Locked install, lint, strict typecheck, rendered tests, and both production builds | Pass | Local release gate + CI | `npm run verify` passed with 8/8 immutable-release tests; the visual-provenance and two repository-governance regressions extend the maintained gate to 11/11 without changing runtime code |
 | Production dependency audit | Pass | npm audit via local gate + CI | 0 production vulnerabilities |
 | Local multi-viewport journey suite | Pass | Playwright | 87 checks enumerated; 35 passed, 52 intentional environment/viewport skips, 0 failed at 1440, 390, and 320 widths |
 | Deployed Netlify journey suite | Pass | Playwright against production | 87 checks enumerated; 40 passed, 47 intentional environment/viewport skips, 0 failed in 5.6 minutes |
@@ -112,8 +112,10 @@ passed Playwright, HTTP, header, and media-integrity verification.
   GitHub Secret Protection on an eligible Team/Enterprise organization and are
   not available to this user-owned repository's current plan. They are not
   misreported as enabled.
-- Weekly Dependabot version maintenance covers npm and GitHub Actions. Major
-  npm upgrades remain intentionally manual and must pass the full release gate.
+- Weekly Dependabot version maintenance uses peer-aware React and Vite/RSC npm
+  groups with custom new-release cooldowns. GitHub Actions use GitHub's default
+  cooldown. All major npm and Action upgrades remain intentionally manual and
+  must pass the full release gate.
 
 ## Rights and safety disposition
 
