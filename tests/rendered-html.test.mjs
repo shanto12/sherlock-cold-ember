@@ -110,4 +110,10 @@ test("ships the original media, Netlify form detector, and no starter surface", 
     assert.match(headers, /\/scenes\/\*/);
     assert.match(headers, /stale-while-revalidate=604800/);
   }
+
+  const wranglerConfig = JSON.parse(
+    await readFile(new URL("../dist/server/wrangler.json", import.meta.url), "utf8"),
+  );
+  assert.equal(wranglerConfig.assets?.binding, "ASSETS");
+  assert.deepEqual(wranglerConfig.assets?.run_worker_first, ["/audio/*"]);
 });
