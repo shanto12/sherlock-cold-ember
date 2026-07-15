@@ -53,7 +53,7 @@ test("publishes complete metadata and working deep links", async ({ page }, test
   );
   await expect(page.locator('meta[name="twitter:description"]')).toHaveAttribute(
     "content",
-    /cinematic, interactive mystery/i,
+    /cinematic mystery with original voices/i,
   );
   await expect(page.locator('meta[name="twitter:image"]')).toHaveAttribute("content", /\/og\.png$/);
   await expect(page.locator('meta[name="application-name"]')).toHaveAttribute(

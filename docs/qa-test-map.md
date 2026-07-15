@@ -8,9 +8,9 @@ This map describes the production-oriented Playwright coverage. Browser artifact
 | Mobile layouts | Chromium at 390 x 844 and 320 x 658 |
 | Primary journey | Begin, all five chapter links, full previous/next traversal and boundaries, telegram open/fold, inspection light on/off, every clue, all three conclusions, replay |
 | Global controls | Motion pause/resume, case-notes drawer, clear notes, close controls, both commission calls to action |
-| Audio autoplay policy | No `AudioContext` before an explicit gesture, no autoplay media, no sound after reload, one context per mounted experience |
+| Default-on audio policy | Fresh profile is armed by default; no `AudioContext` or audible media before a trusted interaction; the first ordinary click/tap/key starts the active scene without a dedicated audio CTA; one context/player per mounted experience |
 | Cinematic audio lifecycle | Five-scene mix changes, hidden-tab suspension and timer release, resume, mute, stop, and complete source/node cleanup |
-| Dialogue and captions | Local speech requests, character/caption changes, canonical-source links, play/stop/dismiss, speech-failure timing, and persistent caption availability |
+| Dialogue and captions | All five self-hosted scene masters, changing speakers, authored cue timing, canonical-source links, automatic scene entry, off/on persistence, immediate stop, dismiss, decode/play failure fallback, and persistent caption availability |
 | Sound mixer | Master, atmosphere, and dialogue ranges; persisted values; start/stop; close; responsive layout and touch targets |
 | Inquiry workflow | Dialog open/close, Escape, focus containment/restoration, validation, field completion, encoded form submission |
 | Reduced motion | OS preference, persisted pause state, animation lifecycle |
@@ -18,6 +18,7 @@ This map describes the production-oriented Playwright coverage. Browser artifact
 | Runtime health | Page errors, browser console errors, failed same-origin requests, unexpected 4xx/5xx responses |
 | Routing/SEO and media | Full canonical/Open Graph/X metadata, structured data, robots, sitemap, in-page deep links, designed 404 return, 1200 x 630 social art, and all ten scene assets |
 | Production security | HTTPS-only executable resources, full intended CSP directives, HSTS options, clickjacking, MIME, referrer, permissions, cross-origin, and HTML/static/scene cache headers |
+| Audio secret/network hygiene | No secret pattern in tracked files, build output, or rendered HTML; `media-src 'self'`; `autoplay=(self)`; no browser request to ElevenLabs or another audio origin; every audio asset returns 200 with an audio MIME type |
 | Live Netlify form | Opt-in production submission with `PLAYWRIGHT_LIVE_FORM=1` |
 | Responsive safety | Full-section scrolling, decoded scene art, and horizontal-overflow measurements at all three viewports |
 

@@ -1,7 +1,31 @@
 import { expect, test } from "@playwright/test";
+import { createHash } from "node:crypto";
+import { CINEMATIC_AUDIO_MANIFEST } from "../../lib/cinematic-audio-manifest";
 
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "";
 const isProductionHttps = /^https:\/\//.test(baseURL);
+
+type PublishedAudioAsset = {
+  readonly url: string;
+  readonly sha256: string;
+  readonly sizeBytes: number;
+};
+
+function publishedAudioAssets(): PublishedAudioAsset[] {
+  const assets = new Map<string, PublishedAudioAsset>();
+  for (const scene of Object.values(CINEMATIC_AUDIO_MANIFEST.scenes)) {
+    for (const asset of [
+      scene.dialogueStem,
+      scene.ambienceLoop,
+      scene.master,
+      ...scene.lines.map((line) => line.stem),
+      ...scene.effects.map((effect) => effect.asset),
+    ]) {
+      assets.set(asset.url, asset);
+    }
+  }
+  return [...assets.values()];
+}
 
 test.beforeEach(({}, testInfo) => {
   test.skip(
@@ -29,6 +53,7 @@ test("production serves the hardened browser security policy", async ({ request 
     "media-src 'self'",
     "object-src 'none'",
     "script-src 'self' 'unsafe-inline'",
+    "script-src-attr 'none'",
     "style-src 'self' 'unsafe-inline'",
     "worker-src 'self' blob:",
   ]) {
@@ -47,7 +72,7 @@ test("production serves the hardened browser security policy", async ({ request 
   expect(headers["cross-origin-resource-policy"]).toBe("same-origin");
   for (const permission of [
     "accelerometer=()",
-    "autoplay=()",
+    "autoplay=(self)",
     "camera=()",
     "display-capture=()",
     "geolocation=()",
@@ -79,6 +104,78 @@ test("production applies the intended HTML and asset cache policies", async ({ r
   expect(sceneAsset.status()).toBe(200);
   expect(sceneAsset.headers()["cache-control"]).toMatch(/max-age=86400/i);
   expect(sceneAsset.headers()["cache-control"]).toMatch(/stale-while-revalidate=604800/i);
+
+  const audioPath = CINEMATIC_AUDIO_MANIFEST.scenes.summons.dialogueStem.url;
+  const audioAsset = await request.get(audioPath);
+  expect(audioAsset.status()).toBe(200);
+  expect(audioAsset.headers()["content-type"]).toMatch(/^audio\/(?:mpeg|mp3)/i);
+  expect(audioAsset.headers()["cache-control"]).toMatch(/max-age=31536000/i);
+  expect(audioAsset.headers()["cache-control"]).toMatch(/immutable/i);
+});
+
+test("production ships the exact fingerprinted cinematic audio inventory", async ({ request }) => {
+  const assets = publishedAudioAssets();
+  expect(assets).toHaveLength(45);
+  expect(assets.reduce((total, asset) => total + asset.sizeBytes, 0)).toBe(12_886_180);
+
+  for (const asset of assets) {
+    const response = await request.get(asset.url);
+    expect(response.status(), `${asset.url} should be deployed`).toBe(200);
+    expect(response.headers()["content-type"]).toMatch(/^audio\/(?:mpeg|mp3)/i);
+    expect(response.headers()["cache-control"]).toMatch(/max-age=31536000/i);
+    expect(response.headers()["cache-control"]).toMatch(/immutable/i);
+    const body = await response.body();
+    expect(body.byteLength, `${asset.url} byte size`).toBe(asset.sizeBytes);
+    expect(createHash("sha256").update(body).digest("hex"), `${asset.url} SHA-256`).toBe(
+      asset.sha256,
+    );
+  }
+});
+
+test("production plays only self-hosted cinematic stems after the first interaction", async ({ page, request }) => {
+  const runtimeAssets = Object.values(CINEMATIC_AUDIO_MANIFEST.scenes).flatMap((scene) => [
+    scene.dialogueStem.url,
+    scene.ambienceLoop.url,
+  ]);
+  for (const url of runtimeAssets) {
+    const response = await request.get(url);
+    expect(response.status(), `${url} should be deployed`).toBe(200);
+    expect(response.headers()["content-type"]).toMatch(/^audio\/(?:mpeg|mp3)/i);
+  }
+
+  const audioRequests: string[] = [];
+  page.on("request", (browserRequest) => {
+    if (/\.mp3(?:$|\?)/i.test(browserRequest.url()) || /elevenlabs/i.test(browserRequest.url())) {
+      audioRequests.push(browserRequest.url());
+    }
+  });
+  await page.goto("/");
+  await page.locator("#summons-title").click({ position: { x: 4, y: 4 } });
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          () =>
+            (window as Window & {
+              __coldEmberAudioDebug?: { assetPlaybackCount?: number };
+            }).__coldEmberAudioDebug?.assetPlaybackCount ?? 0,
+        ),
+      { timeout: 20_000 },
+    )
+    .toBeGreaterThanOrEqual(2);
+  await expect(page.getByRole("region", { name: "Dialogue caption" })).toContainText(
+    "Mrs. Hudson",
+    { timeout: 8_000 },
+  );
+
+  const origin = new URL(page.url()).origin;
+  expect(audioRequests.length).toBeGreaterThanOrEqual(2);
+  expect(audioRequests.every((url) => new URL(url).origin === origin)).toBe(true);
+  expect(audioRequests.some((url) => /elevenlabs/i.test(url))).toBe(false);
+  await page
+    .getByLabel("Cinematic sound controls")
+    .getByRole("button", { name: "Turn conversation off" })
+    .click();
 });
 
 test("production has no mixed or third-party executable resources", async ({ page }) => {

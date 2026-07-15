@@ -36,7 +36,7 @@ export const metadata: Metadata = {
     template: "%s | The Cold Ember",
   },
   description:
-    "Ride through 1895 London in an interactive Sherlock Holmes mystery with opt-in cinematic sound, character conversations, and source-aware captions.",
+    "Ride through 1895 London in an interactive Sherlock Holmes mystery with original cinematic performances, scene-aware sound, and source-aware captions.",
   applicationName: "The Cold Ember",
   authors: [{ name: "The Cold Ember Studio" }],
   creator: "The Cold Ember Studio",
@@ -56,7 +56,7 @@ export const metadata: Metadata = {
     siteName: "The Cold Ember",
     title: "Sherlock Holmes: The Cold Ember",
     description:
-      "A moving casebook in five observations, with optional procedural sound and character conversations. Ride through London, inspect the evidence, and reach your conclusion.",
+      "A moving casebook in five observations with original character performances, horses, rain, fire, Foley, and scene-aware captions.",
     images: [
       {
         url: "/og.png",
@@ -70,7 +70,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Sherlock Holmes: The Cold Ember",
     description:
-      "Ride through 1895 London in a cinematic, interactive mystery with optional sound and character dialogue.",
+      "Ride through 1895 London in a cinematic mystery with original voices, atmospheric sound, and interactive deduction.",
     images: ["/og.png"],
   },
 };
@@ -91,7 +91,7 @@ export default function RootLayout({
     name: "The Cold Ember",
     url: siteUrl,
     description:
-      "An original interactive Victorian mystery presented as a moving casebook with optional procedural sound and local character voices.",
+      "An original interactive Victorian mystery presented as a moving casebook with original scene performances and accessible captions.",
     inLanguage: "en-US",
     genre: ["Mystery", "Interactive fiction", "Digital experience"],
   };

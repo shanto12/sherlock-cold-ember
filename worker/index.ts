@@ -44,8 +44,16 @@ const worker = {
       return withSecurityHeaders(imageResponse);
     }
 
-    const response = await handler.fetch(request, env, ctx);
-    return withSecurityHeaders(response);
+    const response = withSecurityHeaders(await handler.fetch(request, env, ctx));
+    if (!url.pathname.startsWith("/audio/")) return response;
+
+    const headers = new Headers(response.headers);
+    headers.set("Cache-Control", "public, max-age=31536000, immutable");
+    return new Response(response.body, {
+      headers,
+      status: response.status,
+      statusText: response.statusText,
+    });
   },
 };
 

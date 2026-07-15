@@ -1,13 +1,30 @@
-import type { DialogueCharacter, DialogueLine } from "./dialogue-script";
+import { CINEMATIC_AUDIO_MANIFEST } from "./cinematic-audio-manifest";
+import type {
+  CinematicAudioAssetPlayback,
+  PlayCinematicAssetOptions,
+} from "./cinematic-audio";
+import type {
+  DialogueCharacter,
+  DialogueLine,
+  DialogueSceneId,
+} from "./dialogue-script";
 
 export type DialoguePlaybackResult = "complete" | "stopped";
 
 export type DialoguePlaybackOptions = {
+  scene?: DialogueSceneId;
   getVolume: () => number;
   onLineStart: (line: DialogueLine, index: number) => void;
   onLineEnd?: (line: DialogueLine, index: number) => void;
   onSpeechStart?: (line: DialogueLine, index: number) => void;
   onSpeechActivityChange?: (active: boolean) => void;
+};
+
+export type CinematicDialogueAssetTransport = {
+  playAsset: (
+    url: string,
+    options?: PlayCinematicAssetOptions,
+  ) => Promise<CinematicAudioAssetPlayback | null>;
 };
 
 type VoiceDirection = {
@@ -62,17 +79,29 @@ const captionDuration = (text: string) => {
 };
 
 /**
- * Plays an authored dialogue with local browser voices. The class contains no
- * actor references and gracefully becomes a timed-caption player when speech
- * synthesis is unavailable.
+ * Plays a self-hosted produced scene stem through the supplied Web Audio
+ * transport. If an asset cannot be decoded, it falls back to a local browser
+ * voice and finally to timed captions. No runtime provider call is made.
  */
 export class CinematicDialoguePlayer {
+  private readonly assetTransport: CinematicDialogueAssetTransport | null;
   private generation = 0;
   private activeUtterance: SpeechSynthesisUtterance | null = null;
   private activeTimer: number | null = null;
   private activeResolver: (() => void) | null = null;
+  private activeDialogueAsset: CinematicAudioAssetPlayback | null = null;
+  private activeAmbienceAsset: CinematicAudioAssetPlayback | null = null;
+  private readonly activeCueTimers = new Set<number>();
+
+  public constructor(assetTransport: CinematicDialogueAssetTransport | null = null) {
+    this.assetTransport = assetTransport;
+  }
 
   public isVoiceAvailable(): boolean {
+    return this.assetTransport !== null || this.isSystemVoiceAvailable();
+  }
+
+  private isSystemVoiceAvailable(): boolean {
     return (
       typeof window !== "undefined" &&
       typeof window.speechSynthesis?.speak === "function" &&
@@ -82,12 +111,18 @@ export class CinematicDialoguePlayer {
 
   public stop(): void {
     this.generation += 1;
+    this.activeCueTimers.forEach((timer) => window.clearTimeout(timer));
+    this.activeCueTimers.clear();
+    this.activeDialogueAsset?.stop();
+    this.activeAmbienceAsset?.stop();
+    this.activeDialogueAsset = null;
+    this.activeAmbienceAsset = null;
     const settle = this.activeResolver;
     this.activeResolver = null;
     if (this.activeTimer !== null) window.clearTimeout(this.activeTimer);
     this.activeTimer = null;
     this.activeUtterance = null;
-    if (this.isVoiceAvailable()) window.speechSynthesis.cancel();
+    if (this.isSystemVoiceAvailable()) window.speechSynthesis.cancel();
     settle?.();
   }
 
@@ -97,6 +132,13 @@ export class CinematicDialoguePlayer {
   ): Promise<DialoguePlaybackResult> {
     this.stop();
     const generation = this.generation;
+
+    const generatedResult = await this.playGeneratedScene(
+      lines,
+      options,
+      generation,
+    );
+    if (generatedResult) return generatedResult;
 
     for (let index = 0; index < lines.length; index += 1) {
       if (generation !== this.generation) return "stopped";
@@ -117,8 +159,85 @@ export class CinematicDialoguePlayer {
     return generation === this.generation ? "complete" : "stopped";
   }
 
+  private async playGeneratedScene(
+    lines: readonly DialogueLine[],
+    options: DialoguePlaybackOptions,
+    generation: number,
+  ): Promise<DialoguePlaybackResult | null> {
+    const sceneId = options.scene;
+    if (!sceneId || !this.assetTransport || typeof window === "undefined") {
+      return null;
+    }
+
+    const scene = CINEMATIC_AUDIO_MANIFEST.scenes[sceneId];
+    if (
+      scene.lines.length !== lines.length ||
+      scene.lines.some(
+        (manifestLine, index) =>
+          manifestLine.index !== index ||
+          manifestLine.speaker !== lines[index]?.speaker ||
+          manifestLine.text !== lines[index]?.text,
+      )
+    ) {
+      return null;
+    }
+
+    const [ambience, dialogue] = await Promise.all([
+      this.assetTransport.playAsset(scene.ambienceLoop.url, {
+        bus: "ambience",
+        gain: 1.45,
+        loop: true,
+      }),
+      this.assetTransport.playAsset(scene.dialogueStem.url, {
+        bus: "dialogue",
+      }),
+    ]);
+
+    if (generation !== this.generation) {
+      ambience?.stop();
+      dialogue?.stop();
+      return "stopped";
+    }
+
+    this.activeAmbienceAsset = ambience;
+    if (!dialogue) return null;
+    this.activeDialogueAsset = dialogue;
+
+    const schedule = (delayMs: number, callback: () => void) => {
+      const timer = window.setTimeout(() => {
+        this.activeCueTimers.delete(timer);
+        if (generation === this.generation) callback();
+      }, Math.max(0, delayMs + 12));
+      this.activeCueTimers.add(timer);
+    };
+
+    scene.lines.forEach((cue, index) => {
+      const line = lines[index];
+      schedule(cue.startMs, () => {
+        options.onLineStart(line, index);
+        const audible = clamp(options.getVolume()) > 0;
+        options.onSpeechActivityChange?.(audible);
+        if (audible) options.onSpeechStart?.(line, index);
+      });
+      schedule(cue.endMs, () => {
+        options.onSpeechActivityChange?.(false);
+        options.onLineEnd?.(line, index);
+      });
+    });
+
+    const assetResult = await dialogue.result;
+    if (this.activeDialogueAsset === dialogue) this.activeDialogueAsset = null;
+    this.activeCueTimers.forEach((timer) => window.clearTimeout(timer));
+    this.activeCueTimers.clear();
+    options.onSpeechActivityChange?.(false);
+    if (generation !== this.generation || assetResult === "stopped") {
+      return "stopped";
+    }
+    return assetResult === "complete" ? "complete" : null;
+  }
+
   private selectVoice(speaker: DialogueCharacter): SpeechSynthesisVoice | null {
-    if (!this.isVoiceAvailable()) return null;
+    if (!this.isSystemVoiceAvailable()) return null;
     const voices = window.speechSynthesis.getVoices();
     if (voices.length === 0) return null;
     const direction = DIRECTIONS[speaker];
@@ -153,7 +272,7 @@ export class CinematicDialoguePlayer {
       return;
     }
 
-    if (!this.isVoiceAvailable()) {
+    if (!this.isSystemVoiceAvailable()) {
       onSpeechActiveChange(false);
       await this.waitFor(lineCaptionDuration, generation);
       return;

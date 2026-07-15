@@ -1,5 +1,6 @@
 /**
- * Dependency-free, procedural audio for The Cold Ember Casebook.
+ * Dependency-free audio graph for The Cold Ember Casebook. It combines bounded
+ * procedural ambience with decoded, self-hosted production stems.
  *
  * The constructor is intentionally inert. `AudioContext` is created only by an
  * explicit call to `start()`, which the UI must make from a user gesture. This
@@ -28,6 +29,17 @@ export type CinematicSoundCue =
   | "ui";
 
 export type CinematicAudioBus = "ambience" | "dialogue";
+
+export type CinematicAudioAssetResult = "complete" | "stopped" | "failed";
+
+export interface CinematicAudioAssetPlayback {
+  readonly url: string;
+  readonly durationMs: number;
+  readonly startedAtContextTime: number;
+  readonly result: Promise<CinematicAudioAssetResult>;
+  setGain(value: number): void;
+  stop(): void;
+}
 
 export type CinematicAudioStatus =
   | "idle"
@@ -60,6 +72,12 @@ export interface CinematicAudioDebugSnapshot {
   readonly cueCount: number;
   readonly lastCue: CinematicSoundCue | null;
   readonly lastAmbientEvent: string | null;
+  readonly decodedAssetCount: number;
+  readonly activeAssetSourceCount: number;
+  readonly activeAssetNodeCount: number;
+  readonly assetPlaybackCount: number;
+  readonly assetFailureCount: number;
+  readonly dialogueDucking: boolean;
   readonly manuallySuspended: boolean;
   readonly visibilitySuspended: boolean;
   readonly visibilityBound: boolean;
@@ -87,6 +105,12 @@ export interface PlayCinematicCueOptions {
   readonly bus?: CinematicAudioBus;
   /** Multiplier applied in addition to the selected bus volume. */
   readonly intensity?: number;
+}
+
+export interface PlayCinematicAssetOptions {
+  readonly bus?: CinematicAudioBus;
+  readonly gain?: number;
+  readonly loop?: boolean;
 }
 
 const DEBUG_GLOBAL_KEY = "__coldEmberAudioDebug";
@@ -173,11 +197,21 @@ export class CinematicAudioEngine {
   private readonly ambientNodes = new Set<AudioNode>();
   private readonly transientSources = new Set<AudioScheduledSourceNode>();
   private readonly transientNodes = new Set<AudioNode>();
+  private readonly decodedAssets = new Map<
+    string,
+    Promise<AudioBuffer | null>
+  >();
+  private readonly assetSources = new Set<AudioBufferSourceNode>();
+  private readonly assetNodes = new Set<AudioNode>();
+  private readonly assetStops = new Set<() => void>();
   private readonly directResumes = new Set<Promise<void>>();
   private contextTransition: Promise<void> = Promise.resolve();
 
   private visibilityBound = false;
   private visibilityListener: (() => void) | null = null;
+  private assetPlaybackCount = 0;
+  private assetFailureCount = 0;
+  private dialogueDucking = false;
 
   public constructor(options: CinematicAudioOptions = {}) {
     this.contextFactory = options.contextFactory;
@@ -187,9 +221,9 @@ export class CinematicAudioEngine {
     this.publishDebugEnabled = options.publishDebug ?? true;
     this.onDebugChange = options.onDebugChange;
     this.scene = options.scene ?? "summons";
-    this.masterVolume = clamp(options.masterVolume ?? 0.72);
-    this.ambienceVolume = clamp(options.ambienceVolume ?? 0.48);
-    this.dialogueVolume = clamp(options.dialogueVolume ?? 0.86);
+    this.masterVolume = clamp(options.masterVolume ?? 0.78);
+    this.ambienceVolume = clamp(options.ambienceVolume ?? 0.72);
+    this.dialogueVolume = clamp(options.dialogueVolume ?? 0.92);
 
     this.publishDebug();
   }
@@ -219,6 +253,8 @@ export class CinematicAudioEngine {
     // Starting is provisional until the browser confirms a running context.
     // A failed attempt must never arm later visibility-driven playback.
     this.started = false;
+    this.dialogueDucking = false;
+    this.rampGain(this.ambienceGain, this.ambienceVolume);
     this.manuallySuspended = false;
     this.resumeAfterVisibility = false;
     this.visibilitySuspended = Boolean(this.documentRef?.hidden);
@@ -341,12 +377,15 @@ export class CinematicAudioEngine {
     if (this.destroyed) return;
     const revision = ++this.lifecycleRevision;
     this.started = false;
+    this.dialogueDucking = false;
+    this.rampGain(this.ambienceGain, this.ambienceVolume);
     this.manuallySuspended = false;
     this.visibilitySuspended = false;
     this.resumeAfterVisibility = false;
     this.clearSceneIntervals();
     this.stopAmbientSources();
     this.stopTransientSources();
+    this.stopAssetSources();
     const authoritative = await this.queueContextTransition(revision, async () => {
       await this.awaitDirectResumes();
       if (revision !== this.lifecycleRevision) return;
@@ -364,10 +403,12 @@ export class CinematicAudioEngine {
     ++this.lifecycleRevision;
     this.started = false;
     this.destroyed = true;
+    this.dialogueDucking = false;
     this.status = "destroyed";
     this.clearSceneIntervals();
     this.stopAmbientSources();
     this.stopTransientSources();
+    this.stopAssetSources();
     this.unbindVisibility();
 
     const context = this.context;
@@ -377,6 +418,7 @@ export class CinematicAudioEngine {
     this.ambienceGain = null;
     this.dialogueGain = null;
     this.noiseBuffer = null;
+    this.decodedAssets.clear();
 
     if (context && context.state !== "closed") {
       try {
@@ -422,7 +464,10 @@ export class CinematicAudioEngine {
 
   public setAmbienceVolume(value: number): number {
     this.ambienceVolume = clamp(value);
-    this.rampGain(this.ambienceGain, this.ambienceVolume);
+    this.rampGain(
+      this.ambienceGain,
+      this.ambienceVolume * (this.dialogueDucking ? 0.48 : 1),
+    );
     this.publishDebug();
     return this.ambienceVolume;
   }
@@ -437,6 +482,18 @@ export class CinematicAudioEngine {
   /** Effective value to apply to SpeechSynthesisUtterance.volume. */
   public getEffectiveDialogueVolume(): number {
     return clamp(this.masterVolume * this.dialogueVolume);
+  }
+
+  /** Smoothly lowers the atmosphere while an authored line is active. */
+  public setDialogueDucking(active: boolean): void {
+    if (this.dialogueDucking === active || this.destroyed) return;
+    this.dialogueDucking = active;
+    this.rampGain(
+      this.ambienceGain,
+      this.ambienceVolume * (active ? 0.48 : 1),
+      active ? 0.04 : 0.22,
+    );
+    this.publishDebug();
   }
 
   /**
@@ -527,6 +584,129 @@ export class CinematicAudioEngine {
   }
 
   /**
+   * Decodes and plays a same-origin production asset through the existing
+   * Web Audio graph. The method never creates or resumes an AudioContext, so a
+   * trusted interaction must have completed `start()` first. Decoded buffers
+   * are cached for the lifetime of this engine and are released by destroy().
+   */
+  public async playAsset(
+    url: string,
+    options: PlayCinematicAssetOptions = {},
+  ): Promise<CinematicAudioAssetPlayback | null> {
+    const context = this.context;
+    const revision = this.lifecycleRevision;
+    if (
+      !context ||
+      !this.started ||
+      this.destroyed ||
+      context.state !== "running" ||
+      this.visibilitySuspended ||
+      !this.isSafeAssetUrl(url)
+    ) {
+      return null;
+    }
+
+    const buffer = await this.loadAssetBuffer(url, context);
+    if (
+      !buffer ||
+      revision !== this.lifecycleRevision ||
+      context !== this.context ||
+      !this.started ||
+      this.destroyed ||
+      context.state !== "running" ||
+      this.visibilitySuspended
+    ) {
+      if (!buffer) {
+        this.assetFailureCount += 1;
+        this.publishDebug();
+      }
+      return null;
+    }
+
+    const destination =
+      (options.bus ?? "dialogue") === "dialogue"
+        ? this.dialogueGain
+        : this.ambienceGain;
+    if (!destination) return null;
+
+    try {
+      const source = context.createBufferSource();
+      const gain = context.createGain();
+      source.buffer = buffer;
+      source.loop = options.loop ?? false;
+      gain.gain.value = clamp(options.gain ?? 1, 0, 2);
+      source.connect(gain);
+      gain.connect(destination);
+
+      let stopped = false;
+      let settled = false;
+      let resolveResult!: (result: CinematicAudioAssetResult) => void;
+      const result = new Promise<CinematicAudioAssetResult>((resolve) => {
+        resolveResult = resolve;
+      });
+
+      const finish = (outcome: CinematicAudioAssetResult) => {
+        if (settled) return;
+        settled = true;
+        this.assetSources.delete(source);
+        this.assetNodes.delete(source);
+        this.assetNodes.delete(gain);
+        this.assetStops.delete(stop);
+        try {
+          source.disconnect();
+        } catch {
+          // A concurrent engine teardown may already have disconnected it.
+        }
+        try {
+          gain.disconnect();
+        } catch {
+          // A concurrent engine teardown may already have disconnected it.
+        }
+        resolveResult(outcome);
+        this.publishDebug();
+      };
+
+      const stop = () => {
+        if (settled) return;
+        stopped = true;
+        try {
+          source.stop();
+        } catch {
+          finish("stopped");
+        }
+      };
+
+      source.addEventListener(
+        "ended",
+        () => finish(stopped ? "stopped" : "complete"),
+        { once: true },
+      );
+
+      this.assetSources.add(source);
+      this.assetNodes.add(source);
+      this.assetNodes.add(gain);
+      this.assetStops.add(stop);
+      this.assetPlaybackCount += 1;
+      const startedAtContextTime = context.currentTime + 0.012;
+      source.start(startedAtContextTime);
+      this.publishDebug();
+
+      return Object.freeze({
+        url,
+        durationMs: buffer.duration * 1_000,
+        startedAtContextTime,
+        result,
+        setGain: (value: number) => this.rampGain(gain, clamp(value, 0, 2)),
+        stop,
+      });
+    } catch {
+      this.assetFailureCount += 1;
+      this.publishDebug();
+      return null;
+    }
+  }
+
+  /**
    * Adds visibility suspension to a custom Document. Calling this method does
    * not initialize audio. The constructor's document is used by default.
    */
@@ -610,6 +790,12 @@ export class CinematicAudioEngine {
       cueCount: this.cueCount,
       lastCue: this.lastCue,
       lastAmbientEvent: this.lastAmbientEvent,
+      decodedAssetCount: this.decodedAssets.size,
+      activeAssetSourceCount: this.assetSources.size,
+      activeAssetNodeCount: this.assetNodes.size,
+      assetPlaybackCount: this.assetPlaybackCount,
+      assetFailureCount: this.assetFailureCount,
+      dialogueDucking: this.dialogueDucking,
       manuallySuspended: this.manuallySuspended,
       visibilitySuspended: this.visibilitySuspended,
       visibilityBound: this.visibilityBound,
@@ -1032,12 +1218,67 @@ export class CinematicAudioEngine {
     this.transientNodes.clear();
   }
 
-  private rampGain(node: GainNode | null, value: number): void {
+  private stopAssetSources(): void {
+    [...this.assetStops].forEach((stop) => stop());
+    this.assetStops.clear();
+    this.assetSources.clear();
+    this.assetNodes.forEach((node) => {
+      try {
+        node.disconnect();
+      } catch {
+        // An ended handler may already have released this node.
+      }
+    });
+    this.assetNodes.clear();
+    this.publishDebug();
+  }
+
+  private isSafeAssetUrl(url: string): boolean {
+    return (
+      /^\/audio\/[a-z0-9/_.-]+\.(?:mp3|ogg|opus|wav)$/i.test(url) &&
+      !url.includes("..")
+    );
+  }
+
+  private loadAssetBuffer(
+    url: string,
+    context: AudioContext,
+  ): Promise<AudioBuffer | null> {
+    const cached = this.decodedAssets.get(url);
+    if (cached) return cached;
+
+    if (
+      typeof globalThis.fetch !== "function" ||
+      typeof context.decodeAudioData !== "function"
+    ) {
+      return Promise.resolve(null);
+    }
+
+    const request = (async () => {
+      const response = await globalThis.fetch(url, {
+        cache: "force-cache",
+        credentials: "same-origin",
+      });
+      if (!response.ok) return null;
+      const encoded = await response.arrayBuffer();
+      if (encoded.byteLength === 0) return null;
+      return context.decodeAudioData(encoded.slice(0));
+    })().catch(() => null);
+
+    this.decodedAssets.set(url, request);
+    return request;
+  }
+
+  private rampGain(
+    node: GainNode | null,
+    value: number,
+    timeConstant = 0.035,
+  ): void {
     const context = this.context;
     if (!context || !node || context.state === "closed") return;
     const now = context.currentTime;
     node.gain.cancelScheduledValues(now);
-    node.gain.setTargetAtTime(value, now, 0.035);
+    node.gain.setTargetAtTime(value, now, timeConstant);
   }
 
   private async rollbackFailedStart(
@@ -1047,12 +1288,14 @@ export class CinematicAudioEngine {
     if (revision !== this.lifecycleRevision || this.destroyed) return false;
 
     this.started = false;
+    this.dialogueDucking = false;
     this.manuallySuspended = false;
     this.resumeAfterVisibility = false;
     this.visibilitySuspended = Boolean(this.documentRef?.hidden);
     this.clearSceneIntervals();
     this.stopAmbientSources();
     this.stopTransientSources();
+    this.stopAssetSources();
 
     // A previously queued visibility resume may already be inside the browser
     // call. Drain it before suspension so a failed start cannot later wake up.

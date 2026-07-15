@@ -4,14 +4,14 @@
 
 **The Cold Ember** is an original, interactive Sherlock Holmes case set in London during the winter of 1895. It treats the browser like a moving casebook: visitors follow a telegram from Baker Street, ride through gaslit streets in a period-correct hansom, inspect a bindery crime scene, cross-reference evidence, and test a conclusion.
 
-[View the production experience](https://sherlock-cold-ember.netlify.app) · [Read the master plan](./docs/master-plan.md) · [Review release evidence](./docs/release-evidence.md) · [Audit dialogue provenance](./docs/dialogue-sources.md)
+[View the production experience](https://sherlock-cold-ember.netlify.app) · [Read the master plan](./docs/master-plan.md) · [Review release evidence](./docs/release-evidence.md) · [Audit dialogue provenance](./docs/dialogue-sources.md) · [Inspect cinematic audio QA](./scripts/audio/PROVENANCE.md) · [Read the asset notice](./ASSET-NOTICE.md)
 
 ## What makes it distinctive
 
 - Five cinematic, full-page observations with original artwork and a cold-cobalt/gas-flame visual system
 - Bounded CSS and Canvas motion for rain, smoke, gaslight, cab rhythm, drifting pages, and deduction lines
-- Five opt-in procedural soundscapes with rain, fire, hansom rhythms, clocks, paper, room tone, and responsive clue cues
-- Locally synthesized Holmes, Watson, Lestrade, Gregory, Irene Adler, Mrs. Hudson, and hansom-driver performances with synchronized captions
+- Five default-on, scene-aware cinematic masters with rain, fire, hansom rhythms, horses, clocks, paper, room tone, Foley, and responsive clue cues
+- Original Holmes, Watson, Lestrade, Gregory, Irene Adler, Mrs. Hudson, and hansom-driver performances produced offline with synchronized captions
 - Short, source-linked canonical dialogue echoes inside an otherwise original case script, with strict 1895 chronology and no actor imitation
 - Keyboard, touch, and pointer parity, plus a persistent motion pause and a composed reduced-motion edition
 - An evidence notebook, chapter index, conclusion workflow, and Netlify-powered consultation inquiry
@@ -23,7 +23,8 @@
 - Next.js 16, React 19, and TypeScript
 - Vinext and Cloudflare Workers for the private Sites parity build
 - Netlify Next Runtime and Netlify Forms for public production
-- Native CSS, Canvas, Web Audio, and browser speech synthesis with no animation or audio framework dependency
+- Native CSS, Canvas, Web Audio, and self-hosted audio with browser speech synthesis retained only as a graceful fallback
+- Offline ElevenLabs Voice Design, Eleven v3, Sound Effects v2, and FFmpeg mastering; no provider call or credential exists in the browser runtime
 - GitHub Actions for linting, type checks, rendered tests, both production builds, and a production dependency audit
 
 ## Local development
@@ -49,7 +50,7 @@ Run the full local release gate:
 npm run verify
 ```
 
-The release gate covers linting, strict TypeScript checks, rendered behavior tests, the Vinext/Sites build, the Next.js/Netlify build, and the production-only npm audit. Playwright additionally proves that audio remains user-gesture locked, mixer choices persist without auto-resuming, scene mixes transition, dialogue/captions work at all three release widths, hidden tabs release scheduled work, and stopping sound clears every node and timer. Current production proof—including real Chrome, responsive, form-delivery, console, network, route, CSP, and header checks—is recorded in [`docs/release-evidence.md`](./docs/release-evidence.md).
+The release gate covers linting, strict TypeScript checks, rendered behavior tests, the Vinext/Sites build, the Next.js/Netlify build, and the production-only npm audit. Playwright additionally proves that conversation is armed by default but remains browser-gesture locked, the first ordinary interaction starts the active scene, the off preference persists, all five masters and captions transition correctly at all three release widths, hidden tabs release scheduled work, and stopping sound clears every player, node, and timer. Current production proof—including real Chrome, responsive, form-delivery, console, network, route, CSP, and header checks—is recorded in [`docs/release-evidence.md`](./docs/release-evidence.md).
 
 ## Release architecture
 
@@ -64,10 +65,14 @@ No credentials or deployment tokens belong in this repository. Local `.env*`, Ne
 
 ## Historical and rights note
 
-The site uses original scene compositions and an original case script, punctuated by seven brief, visibly attributed excerpts from public-domain Doyle stories. It is an independent, unofficial adaptation and is not affiliated with any film, television production, museum, platform, publisher, or estate. No actor likeness, actor recording, audiobook, or modern screen-franchise design is used. Voices come from the visitor's own browser and device; sound effects are generated procedurally rather than sampled.
+The site uses original scene compositions and an original case script, punctuated by seven brief, visibly attributed excerpts from public-domain Doyle stories. It is an independent, unofficial adaptation and is not affiliated with any film, television production, museum, platform, publisher, or estate. No actor likeness, actor recording, audiobook, or modern screen-franchise design is used. Every produced voice is an original non-celebrity character performance; generated ambience and Foley are self-hosted, while bounded procedural sound remains as an enhancement and fallback.
 
 Smoking appears only as non-promotional historical context. Tobacco use is harmful; the experience does not endorse it.
 
 ## License
 
-Source code and original project materials are available under the [MIT License](./LICENSE).
+Source code and non-audio original project materials are available under the
+[MIT License](./LICENSE). Produced voice, ambience, and Foley recordings have
+the extraction and standalone-reuse restrictions described in the
+[Asset Notice](./ASSET-NOTICE.md). Public-domain quotations remain public
+domain in the United States.
