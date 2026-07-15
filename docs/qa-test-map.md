@@ -32,4 +32,15 @@ July 15, 2026 at 1:05 PM CDT:
 - Cinematic-audio coverage inside the complete run: 15 passed, 24 intentionally skipped duplicate desktop-only checks, 0 failed across 1440px, 390px, and 320px
 - Complete three-viewport regression suite: 33 passed, 42 intentional local skips (production-only or duplicate desktop checks), 0 failed
 - TypeScript, ESLint, Vinext build, Next.js build, rendered tests, live source-text verification, and production npm audit: passed; 0 production vulnerabilities
-- Production security and live Netlify form checks: pending the public production deployment
+- Dialogue-source live checks: 4 passed, proving all 5 primary source URLs resolve and all 7 credited excerpts occur in the linked public-domain text
+
+## Latest production baseline
+
+July 15, 2026 at 1:35 PM CDT:
+
+- Netlify three-viewport production suite: 37 passed, 38 intentional duplicate/local-only skips, 0 failed in 2.0 minutes
+- Controlled Netlify form proofs: automated submission `6a57cd1102c1404bf8ee69ed` and real-Chrome submission `6a57d0e95e5ef9757761ebbe` were both confirmed through the Forms API
+- Real Chrome: every primary desktop control and workflow was exercised, all five character conversations were sampled with live captions, and the responsive 375 x 812 view was checked with its index and sound mixer
+- Runtime health: 0 site-origin Chrome warnings/errors, 0 Playwright page/console failures, and 0 unexpected same-origin request failures
+- Production security: root, static asset, and 404 caching plus CSP, HSTS, clickjacking, MIME, referrer, permissions, and cross-origin headers passed
+- Private Sites parity: the exact runtime commit returned authenticated HTTP 200 with its hardened headers; the owner-only browser gate reached OpenAI MFA as designed, so private-runtime UI interaction is evidenced by exact-source parity and authenticated API smoke rather than a second Chrome journey
