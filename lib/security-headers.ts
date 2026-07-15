@@ -15,6 +15,7 @@ export const CONTENT_SECURITY_POLICY = [
   "media-src 'self'",
   "object-src 'none'",
   "script-src 'self' 'unsafe-inline'",
+  "script-src-attr 'none'",
   "style-src 'self' 'unsafe-inline'",
   "worker-src 'self' blob:",
 ].join("; ");
@@ -24,7 +25,7 @@ export const SECURITY_HEADERS = [
   {
     key: "Permissions-Policy",
     value:
-      "accelerometer=(), autoplay=(), camera=(), display-capture=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()",
+      "accelerometer=(), autoplay=(self), camera=(), display-capture=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()",
   },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },

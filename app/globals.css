@@ -1195,6 +1195,9 @@ a {
   width: 0.1rem;
   height: 28%;
   background: var(--gas);
+}
+
+.sound-wave.is-live i {
   animation: soundWave 0.88s ease-in-out infinite alternate;
 }
 
@@ -1226,10 +1229,7 @@ a {
 }
 
 .sound-console-actions button:last-child {
-  width: 2.75rem;
-  padding: 0;
   border-right: 0;
-  font-size: 1rem;
 }
 
 .cinematic-caption {
@@ -2294,10 +2294,6 @@ a {
   .sound-console-actions button {
     min-height: 2.75rem;
     flex: 1;
-  }
-
-  .sound-console-actions button:last-child {
-    flex: 0 0 2.75rem;
   }
 
   .cinematic-caption {

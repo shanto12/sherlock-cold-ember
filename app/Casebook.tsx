@@ -50,6 +50,9 @@ type DialogueDebugSnapshot = {
   voiceAvailable: boolean;
 };
 
+const CONVERSATION_PREFERENCE_KEY = "cold-ember-conversation";
+const AUTO_DIALOGUE_DELAY_MS = 280;
+
 const SCENES: Scene[] = [
   {
     id: "summons",
@@ -378,10 +381,14 @@ export function Casebook() {
   const [audioCapabilityKnown, setAudioCapabilityKnown] = useState(false);
   const [audioDegraded, setAudioDegraded] = useState(false);
   const [audioStatus, setAudioStatus] = useState<CinematicAudioStatus>("idle");
-  const [masterVolume, setMasterVolume] = useState(0.72);
-  const [ambienceVolume, setAmbienceVolume] = useState(0.48);
-  const [dialogueVolume, setDialogueVolume] = useState(0.86);
+  const [masterVolume, setMasterVolume] = useState(0.78);
+  const [ambienceVolume, setAmbienceVolume] = useState(0.72);
+  const [dialogueVolume, setDialogueVolume] = useState(0.92);
   const [audioSettingsReady, setAudioSettingsReady] = useState(false);
+  const [conversationEnabled, setConversationEnabled] = useState(true);
+  const [conversationPreferenceReady, setConversationPreferenceReady] = useState(false);
+  const [conversationUnlocked, setConversationUnlocked] = useState(false);
+  const [conversationAutoRevision, setConversationAutoRevision] = useState(0);
   const [dialoguePlaying, setDialoguePlaying] = useState(false);
   const [dialogueSpeechActive, setDialogueSpeechActive] = useState(false);
   const [caption, setCaption] = useState<{
@@ -396,8 +403,17 @@ export function Casebook() {
   const soundDialog = useRef<HTMLDialogElement>(null);
   const audioEngine = useRef<CinematicAudioEngine | null>(null);
   const dialoguePlayer = useRef<CinematicDialoguePlayer | null>(null);
+  const startSoundRef = useRef<() => Promise<boolean>>(async () => false);
+  const gestureAudioStartPromiseRef = useRef<Promise<boolean> | null>(null);
+  const playSceneDialogueRef = useRef<(sceneIndex?: number) => Promise<void>>(
+    async () => undefined,
+  );
   const dialogueUiRun = useRef(0);
   const activeSceneRef = useRef(0);
+  const sceneEntryRef = useRef(0);
+  const conversationEnabledRef = useRef(true);
+  const conversationUnlockedRef = useRef(false);
+  const lastAutoDialogueKey = useRef("");
 
   useEffect(() => {
     let disposed = false;
@@ -409,7 +425,12 @@ export function Casebook() {
         });
       },
     });
-    const player = new CinematicDialoguePlayer();
+    const qaWindow = window as Window & {
+      __qaDisableProducedAudio?: boolean;
+    };
+    const player = new CinematicDialoguePlayer(
+      qaWindow.__qaDisableProducedAudio ? null : engine,
+    );
     const browserWindow = window as Window & {
       webkitAudioContext?: typeof AudioContext;
     };
@@ -435,7 +456,13 @@ export function Casebook() {
 
   useEffect(() => {
     const handleDialogueVisibility = () => {
-      if (!document.hidden) return;
+      if (!document.hidden) {
+        if (conversationEnabledRef.current && conversationUnlockedRef.current) {
+          lastAutoDialogueKey.current = "";
+          setConversationAutoRevision((current) => current + 1);
+        }
+        return;
+      }
       dialogueUiRun.current += 1;
       dialoguePlayer.current?.stop();
       setDialoguePlaying(false);
@@ -451,6 +478,48 @@ export function Casebook() {
     document.addEventListener("visibilitychange", handleDialogueVisibility);
     return () => document.removeEventListener("visibilitychange", handleDialogueVisibility);
   }, []);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      const storedPreference = window.localStorage.getItem(CONVERSATION_PREFERENCE_KEY);
+      const enabled = storedPreference !== "off";
+      conversationEnabledRef.current = enabled;
+      setConversationEnabled(enabled);
+      setConversationPreferenceReady(true);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
+
+  useEffect(() => {
+    if (!conversationPreferenceReady || !conversationEnabled || conversationUnlocked) return;
+
+    const unlockConversation = (event: PointerEvent | globalThis.KeyboardEvent) => {
+      if (!event.isTrusted || (event instanceof globalThis.KeyboardEvent && event.repeat)) return;
+      const target = event.target;
+      if (
+        target instanceof Element &&
+        target.closest<HTMLElement>("[data-conversation-toggle]")
+      ) {
+        return;
+      }
+      conversationUnlockedRef.current = true;
+      setConversationUnlocked(true);
+      const startPromise = startSoundRef.current();
+      gestureAudioStartPromiseRef.current = startPromise;
+      void startPromise.finally(() => {
+        if (gestureAudioStartPromiseRef.current === startPromise) {
+          gestureAudioStartPromiseRef.current = null;
+        }
+      });
+    };
+
+    window.addEventListener("pointerdown", unlockConversation, { capture: true });
+    window.addEventListener("keydown", unlockConversation, { capture: true });
+    return () => {
+      window.removeEventListener("pointerdown", unlockConversation, { capture: true });
+      window.removeEventListener("keydown", unlockConversation, { capture: true });
+    };
+  }, [conversationEnabled, conversationPreferenceReady, conversationUnlocked]);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -520,6 +589,7 @@ export function Casebook() {
           const nextScene = Number((visible.target as HTMLElement).dataset.sceneIndex);
           if (nextScene === activeSceneRef.current) return;
           activeSceneRef.current = nextScene;
+          sceneEntryRef.current += 1;
           const engine = audioEngine.current;
           engine?.setScene(SCENES[nextScene].id);
           if (engine?.getDebugSnapshot().started) {
@@ -608,6 +678,10 @@ export function Casebook() {
 
   const closeDialog = (ref: { current: HTMLDialogElement | null }) => {
     ref.current?.close();
+    if (conversationEnabledRef.current && conversationUnlockedRef.current) {
+      lastAutoDialogueKey.current = "";
+      setConversationAutoRevision((current) => current + 1);
+    }
   };
 
   const toggleMotion = () => {
@@ -627,6 +701,7 @@ export function Casebook() {
     dialoguePlayer.current?.stop();
     setDialoguePlaying(false);
     setDialogueSpeechActive(false);
+    audioEngine.current?.setDialogueDucking(false);
     if (clearCaption) setCaption(null);
     publishDialogueDebug({
       playing: false,
@@ -637,6 +712,8 @@ export function Casebook() {
   };
 
   const startSound = async () => {
+    const pendingGestureStart = gestureAudioStartPromiseRef.current;
+    if (pendingGestureStart) return pendingGestureStart;
     const engine = audioEngine.current;
     if (!engine || !audioSupported) return false;
     const started = await engine.start();
@@ -653,22 +730,20 @@ export function Casebook() {
     return true;
   };
 
+  useEffect(() => {
+    startSoundRef.current = startSound;
+  });
+
   const stopSound = async () => {
     stopDialogue();
     await audioEngine.current?.stop();
     setSoundEnabled(false);
   };
 
-  const toggleSound = async () => {
-    if (soundEnabled && audioStatus === "running") await stopSound();
-    else await startSound();
-  };
-
   const playSceneDialogue = async (sceneIndex = activeSceneRef.current) => {
     const engine = audioEngine.current;
     const player = dialoguePlayer.current;
-    if (!engine || !player) return;
-    const startScrollY = window.scrollY;
+    if (!engine || !player || !conversationEnabledRef.current) return;
 
     dialogueUiRun.current += 1;
     const run = dialogueUiRun.current;
@@ -695,7 +770,6 @@ export function Casebook() {
     if (
       run !== dialogueUiRun.current ||
       activeSceneRef.current !== sceneIndex ||
-      Math.abs(window.scrollY - startScrollY) > 4 ||
       document.hidden
     ) {
       return;
@@ -718,6 +792,7 @@ export function Casebook() {
     });
 
     const result = await player.play(dialogue.lines, {
+      scene,
       getVolume: () =>
         soundscapeReady
           ? engine.getEffectiveDialogueVolume()
@@ -752,6 +827,7 @@ export function Casebook() {
       onSpeechActivityChange: (active) => {
         if (run !== dialogueUiRun.current) return;
         setDialogueSpeechActive(active);
+        engine.setDialogueDucking(active);
         publishDialogueDebug({ speechActive: active });
       },
     });
@@ -761,6 +837,70 @@ export function Casebook() {
     setDialogueSpeechActive(false);
     setCaption(null);
     publishDialogueDebug({ playing: false, speechActive: false, lastResult: result });
+  };
+
+  useEffect(() => {
+    playSceneDialogueRef.current = playSceneDialogue;
+  });
+
+  useEffect(() => {
+    if (
+      !conversationPreferenceReady ||
+      !conversationEnabled ||
+      !conversationUnlocked ||
+      document.hidden
+    ) {
+      return;
+    }
+
+    const autoDialogueKey = `${sceneEntryRef.current}:${conversationAutoRevision}`;
+    if (lastAutoDialogueKey.current === autoDialogueKey) return;
+
+    const timer = window.setTimeout(() => {
+      if (
+        !conversationEnabledRef.current ||
+        !conversationUnlockedRef.current ||
+        document.hidden ||
+        document.querySelector("dialog[open]")
+      ) {
+        return;
+      }
+      lastAutoDialogueKey.current = autoDialogueKey;
+      void playSceneDialogueRef.current(activeScene);
+    }, AUTO_DIALOGUE_DELAY_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    activeScene,
+    conversationAutoRevision,
+    conversationEnabled,
+    conversationPreferenceReady,
+    conversationUnlocked,
+  ]);
+
+  const toggleConversation = async () => {
+    const enabled = !conversationEnabledRef.current;
+    conversationEnabledRef.current = enabled;
+    window.localStorage.setItem(CONVERSATION_PREFERENCE_KEY, enabled ? "on" : "off");
+    setConversationEnabled(enabled);
+
+    if (!enabled) {
+      lastAutoDialogueKey.current = "";
+      await stopSound();
+      return;
+    }
+
+    conversationUnlockedRef.current = true;
+    setConversationUnlocked(true);
+    lastAutoDialogueKey.current = "";
+    setConversationAutoRevision((current) => current + 1);
+    const startPromise = startSoundRef.current();
+    gestureAudioStartPromiseRef.current = startPromise;
+    void startPromise.finally(() => {
+      if (gestureAudioStartPromiseRef.current === startPromise) {
+        gestureAudioStartPromiseRef.current = null;
+      }
+    });
   };
 
   const selectBook = (id: string) => {
@@ -874,32 +1014,18 @@ export function Casebook() {
             {motionPaused ? "Resume motion" : "Pause motion"}
           </button>
           <button
-            className={`quiet-control sound-control${soundscapeLive ? " is-live" : ""}`}
+            className={`quiet-control sound-control${conversationEnabled && conversationUnlocked ? " is-live" : ""}`}
             type="button"
-            aria-pressed={audioCapabilityKnown && audioSupported ? soundscapeLive : undefined}
-            aria-haspopup={audioCapabilityKnown && !audioSupported ? "dialog" : undefined}
-            aria-controls={audioCapabilityKnown && !audioSupported ? "sound-mixer-dialog" : undefined}
-            aria-label={
-              !audioCapabilityKnown
-                ? "Cinematic audio controls loading"
-                : audioSupported
-                  ? soundscapeLive
-                    ? "Turn cinematic sound off"
-                    : soundEnabled
-                      ? "Resume cinematic sound"
-                      : "Turn cinematic sound on"
-                  : "Open captioned dialogue controls"
-            }
-            aria-describedby={audioCapabilityKnown && !audioSupported ? "audio-support-note" : undefined}
-            onClick={() => audioSupported ? void toggleSound() : openDialog(soundDialog)}
-            disabled={!audioCapabilityKnown}
+            data-conversation-toggle
+            aria-pressed={conversationEnabled}
+            aria-label={conversationEnabled ? "Turn conversation off" : "Turn conversation on"}
+            aria-describedby="audio-support-note"
+            onClick={() => void toggleConversation()}
           >
             <span className="sound-signal" aria-hidden="true">
               <i /><i /><i />
             </span>
-            {audioSupported
-              ? soundscapeLive ? "Sound on" : soundEnabled ? "Sound paused" : "Sound off"
-              : "Dialogue"}
+            {conversationEnabled ? "Conversation on" : "Conversation off"}
           </button>
           <button className="quiet-control notes-control" type="button" onClick={() => openDialog(notesDialog)}>
             Case notes <span className="count">{notes.length}</span>
@@ -950,23 +1076,18 @@ export function Casebook() {
               <button className="text-action" type="button" onClick={() => scrollToScene(2)}>
                 Inspect the evidence
               </button>
-              <button
-                className="text-action sound-entry"
-                type="button"
-                onClick={() => void playSceneDialogue(0)}
-              >
-                {!audioCapabilityKnown || audioSupported
-                  ? soundEnabled ? "Hear the summons" : "Enter with sound"
-                  : "Play captioned summons"}
-              </button>
             </div>
             <p id="audio-support-note" className="motion-hint" role={audioCapabilityKnown && (!audioSupported || audioDegraded) ? "status" : undefined}>
               <span aria-hidden="true">◇</span>{" "}
               {audioCapabilityKnown && !audioSupported
-                ? "Ambient Web Audio is unavailable here; timed captions and any local system voice still work."
+                ? "Cinematic stems need Web Audio; timed captions and any local system voice still work here."
                 : audioDegraded
                   ? "The ambient soundscape could not start; captioned dialogue remains available and sound can be retried."
-                : "Sound is optional, locally generated, and always captioned."}
+                  : conversationEnabled
+                    ? conversationUnlocked
+                      ? "Conversation is on and follows each scene automatically."
+                      : "Conversation is on and begins with your first interaction, as required by your browser."
+                    : "Conversation is off. You can turn it on from the sound console at any time."}
             </p>
           </div>
           <div className="telegram-panel">
@@ -1238,8 +1359,9 @@ export function Casebook() {
               <span>04 / Sound</span>
               <h3>London, built from signals</h3>
               <p>
-                Rain, wheels, fire, paper, clocks, and clue accents are synthesized
-                live. No stock recording, actor performance, or adaptation audio is used.
+                Rain, wheels, fire, paper, clocks, voices, and clue accents are
+                original produced assets, reinforced by a bounded live sound layer.
+                No stock recording, actor performance, or adaptation audio is used.
               </p>
             </article>
           </div>
@@ -1258,7 +1380,7 @@ export function Casebook() {
             </details>
             <details>
               <summary>How does the cinematic sound work?</summary>
-              <p>Sound begins only after you ask for it. Your browser generates the ambience locally and uses a local system voice when your device provides one; use the mixer for separate master, atmosphere, and dialogue levels, or turn it off instantly.</p>
+              <p>Conversation is on by default and follows the active scene. Browsers require one ordinary interaction before audible playback can begin; after that, scene conversations start automatically. Use the persistent conversation button to turn dialogue off instantly, or the mixer to adjust master, atmosphere, and dialogue levels.</p>
             </details>
             <details>
               <summary>Where do the famous dialogue lines come from?</summary>
@@ -1285,26 +1407,31 @@ export function Casebook() {
         </section>
       </main>
 
-      {(soundEnabled || dialoguePlaying) && (
+      {(conversationPreferenceReady || soundEnabled || dialoguePlaying) && (
         <aside className="sound-console" aria-label="Cinematic sound controls">
           <div className="sound-console-status">
-            <span className="sound-wave" aria-hidden="true"><i /><i /><i /><i /></span>
+            <span className={`sound-wave${conversationEnabled && conversationUnlocked ? " is-live" : ""}`} aria-hidden="true"><i /><i /><i /><i /></span>
             <span>
-              <small>Scene 0{activeScene + 1} · {soundscapeLive ? "live soundscape" : soundEnabled ? "soundscape paused" : "captioned conversation"}</small>
+              <small role="status" aria-live="polite">
+                Scene 0{activeScene + 1} · {conversationEnabled
+                  ? conversationUnlocked
+                    ? dialoguePlaying ? "conversation playing" : "conversation on · scene ready"
+                    : "conversation on · starts with your first interaction"
+                  : "conversation off"}
+              </small>
               <strong>{DIALOGUES[SCENES[activeScene].id].title}</strong>
             </span>
           </div>
           <div className="sound-console-actions">
             <button
               type="button"
-              onClick={() =>
-                dialoguePlaying ? stopDialogue() : void playSceneDialogue()
-              }
+              data-conversation-toggle
+              aria-pressed={conversationEnabled}
+              onClick={() => void toggleConversation()}
             >
-              {dialoguePlaying ? "Stop conversation" : "Hear conversation"}
+              {conversationEnabled ? "Turn conversation off" : "Turn conversation on"}
             </button>
             <button type="button" onClick={() => openDialog(soundDialog)}>Mixer</button>
-            <button type="button" aria-label={soundEnabled ? "Mute cinematic sound" : "Stop conversation"} onClick={() => void stopSound()}>×</button>
           </div>
         </aside>
       )}
@@ -1353,7 +1480,8 @@ export function Casebook() {
         </div>
         <p>
           An independent, unofficial adaptation inspired by public-domain literary
-          works. Browser-synthesized voices never imitate an actor. Not affiliated
+          works. Original generated voices never imitate an actor; device speech
+          is only a fallback. Not affiliated
           with any film, television, museum, platform, or estate.
         </p>
         <p>
@@ -1421,7 +1549,7 @@ export function Casebook() {
 
       <dialog id="sound-mixer-dialog" ref={soundDialog} className="case-dialog sound-dialog" aria-labelledby="sound-dialog-title">
         <div className="dialog-header">
-          <div><span>Locally generated audio</span><h2 id="sound-dialog-title">Cinematic sound mixer</h2></div>
+          <div><span>Original studio mix</span><h2 id="sound-dialog-title">Cinematic sound mixer</h2></div>
           <button type="button" aria-label="Close sound mixer" onClick={() => closeDialog(soundDialog)}>×</button>
         </div>
         <div className="sound-mixer">
@@ -1437,33 +1565,34 @@ export function Casebook() {
           {(!audioSupported || audioDegraded) && (
             <p className="sound-unavailable" role="status">
               {!audioSupported
-                ? "This browser cannot generate the ambient soundscape. Captioned scene conversations remain available, with a local system voice when your device provides one."
-                : "The ambient soundscape could not start. Captioned scene conversations remain available, and you can retry the soundscape."}
+                ? "This browser cannot play the produced soundscape through Web Audio. Captioned scene conversations remain available, with a local system voice when your device provides one."
+                : "The produced soundscape could not start. Captioned scene conversations remain available, and you can retry the soundscape."}
             </p>
           )}
 
           <div className="sound-mixer-actions">
-            <button className="primary-action" type="button" onClick={() => soundscapeLive ? void stopSound() : void startSound()} disabled={!audioSupported}>
-              {soundscapeLive ? "Stop all sound" : soundEnabled ? "Resume soundscape" : "Start soundscape"}
+            <button
+              className="primary-action"
+              type="button"
+              data-conversation-toggle
+              aria-pressed={conversationEnabled}
+              onClick={() => void toggleConversation()}
+            >
+              {conversationEnabled ? "Turn conversation off" : "Turn conversation on"}
             </button>
             <button
               className="text-action"
               type="button"
-              onClick={() => {
-                if (dialoguePlaying) stopDialogue();
-                else {
-                  closeDialog(soundDialog);
-                  void playSceneDialogue();
-                }
-              }}
+              disabled={!conversationEnabled}
+              onClick={() => closeDialog(soundDialog)}
             >
-              {dialoguePlaying ? "Stop conversation" : "Play scene conversation"}
+              Replay active scene
             </button>
           </div>
 
           <div className="mixer-levels" aria-label="Sound levels">
             <label htmlFor="master-volume">
-              <span><b>Master</b><small>Ambience now · voice on next line</small></span>
+              <span><b>Master</b><small>Whole cinematic mix</small></span>
               <input id="master-volume" type="range" min="0" max="100" value={Math.round(masterVolume * 100)} onChange={(event) => {
                 const value = Number(event.target.value) / 100;
                 setMasterVolume(value);
@@ -1476,7 +1605,7 @@ export function Casebook() {
               <output htmlFor="ambience-volume">{Math.round(ambienceVolume * 100)}%</output>
             </label>
             <label htmlFor="dialogue-volume">
-              <span><b>Dialogue</b><small>Local voice · applies on the next line</small></span>
+              <span><b>Dialogue</b><small>Original voices and timed Foley</small></span>
               <input id="dialogue-volume" type="range" min="0" max="100" value={Math.round(dialogueVolume * 100)} onChange={(event) => {
                 const value = Number(event.target.value) / 100;
                 setDialogueVolume(value);
@@ -1487,7 +1616,7 @@ export function Casebook() {
 
           <div className="sound-ethics-note">
             <span>Performance note</span>
-            <p>No recording or actor likeness is used. Your device chooses a local English system voice; if none is available, the captions continue without speech. All ambience and effects are generated in real time.</p>
+            <p>Seven original non-celebrity character voices, ambience, and Foley were produced offline, mixed, fingerprinted, and self-hosted. No actor recording or likeness is used, and no provider receives visitor data. A local device voice and timed captions remain as graceful fallbacks.</p>
             <a href="https://github.com/shanto12/sherlock-cold-ember/blob/main/docs/dialogue-sources.md" target="_blank" rel="noreferrer">Read dialogue and sound provenance ↗</a>
           </div>
         </div>

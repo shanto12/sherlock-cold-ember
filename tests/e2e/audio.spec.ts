@@ -15,6 +15,7 @@ type AudioHarnessOptions = {
   speechFailure?: "error" | "throw";
   speechStartDelayMs?: number;
   webkitOnly?: boolean;
+  disableProducedAudio?: boolean;
 };
 
 async function installAudioHarness(page: Page, options: AudioHarnessOptions = {}) {
@@ -24,11 +25,13 @@ async function installAudioHarness(page: Page, options: AudioHarnessOptions = {}
       __qaSpeechRequests?: string[];
       __qaSpeechCancels?: number;
       __qaSetAudioHidden?: (hidden: boolean) => void;
+      __qaDisableProducedAudio?: boolean;
       webkitAudioContext?: typeof AudioContext;
     };
     qaWindow.__qaAudioContextConstructed = 0;
     qaWindow.__qaSpeechRequests = [];
     qaWindow.__qaSpeechCancels = 0;
+    qaWindow.__qaDisableProducedAudio = settings.disableProducedAudio ?? true;
 
     const NativeAudioContext = window.AudioContext;
     if (settings.disableAudio) {
@@ -223,6 +226,148 @@ async function installAudioHarness(page: Page, options: AudioHarnessOptions = {}
   }, options);
 }
 
+async function unlockDefaultConversation(page: Page) {
+  await page.locator("#summons-title").click({ position: { x: 4, y: 4 } });
+}
+
+function conversationConsole(page: Page) {
+  return page.getByLabel("Cinematic sound controls");
+}
+
+function headerConversationToggle(page: Page) {
+  return page.locator(".case-header").getByRole("button", {
+    name: /Turn conversation (?:off|on)/,
+  });
+}
+
+test("arms by default and unlocks from an ordinary keyboard interaction", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "keyboard activation runs once on desktop");
+  const runtime = monitorRuntime(page);
+  await installAudioHarness(page);
+  await page.goto("/");
+  await waitForCasebookHydration(page);
+
+  await expect(conversationConsole(page)).toContainText(
+    /conversation on · starts with your first interaction/i,
+  );
+  expect(
+    await page.evaluate(
+      () => (window as Window & { __qaAudioContextConstructed?: number }).__qaAudioContextConstructed,
+    ),
+  ).toBe(0);
+  expect(
+    await page.evaluate(
+      () => (window as Window & { __qaSpeechRequests?: string[] }).__qaSpeechRequests?.length ?? 0,
+    ),
+  ).toBe(0);
+
+  await page.locator("#summons-title").focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("region", { name: "Dialogue caption" })).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => (window as Window & { __qaAudioContextConstructed?: number }).__qaAudioContextConstructed,
+      ),
+    )
+    .toBe(1);
+  await expect(conversationConsole(page)).toContainText(/conversation playing/i);
+  await conversationConsole(page).getByRole("button", { name: "Turn conversation off" }).click();
+  await runtime.assertClean(testInfo);
+});
+
+test("plays self-hosted dialogue and ambience stems through one unlocked audio graph", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "produced asset transport runs once on desktop");
+  const runtime = monitorRuntime(page);
+  const audioRequests: string[] = [];
+  page.on("request", (request) => {
+    if (/\/audio\/cinematic\/.*\.mp3(?:$|\?)/i.test(request.url())) {
+      audioRequests.push(request.url());
+    }
+  });
+  await installAudioHarness(page, { disableProducedAudio: false });
+  await page.goto("/");
+  await waitForCasebookHydration(page);
+
+  await unlockDefaultConversation(page);
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          () =>
+            (window as Window & {
+              __coldEmberAudioDebug?: {
+                assetPlaybackCount?: number;
+                activeAssetSourceCount?: number;
+              };
+            }).__coldEmberAudioDebug,
+        ),
+      { timeout: 20_000 },
+    )
+    .toMatchObject({ assetPlaybackCount: 2, activeAssetSourceCount: 2 });
+
+  const caption = page.getByRole("region", { name: "Dialogue caption" });
+  await expect(caption).toContainText("Mrs. Hudson", { timeout: 8_000 });
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (window as Window & {
+            __coldEmberAudioDebug?: { dialogueDucking?: boolean };
+          }).__coldEmberAudioDebug?.dialogueDucking,
+      ),
+    )
+    .toBe(true);
+  expect(
+    await page.evaluate(
+      () => (window as Window & { __qaSpeechRequests?: string[] }).__qaSpeechRequests?.length ?? 0,
+    ),
+  ).toBe(0);
+  expect(audioRequests.some((url) => /\/ambience\/summons\./.test(url))).toBe(true);
+  expect(audioRequests.some((url) => /\/scenes\/summons-dialogue\./.test(url))).toBe(true);
+  const origin = new URL(page.url()).origin;
+  expect(new Set(audioRequests.map((url) => new URL(url).origin))).toEqual(new Set([origin]));
+  expect(audioRequests.some((url) => /elevenlabs/i.test(url))).toBe(false);
+
+  await page.getByRole("button", { name: "Next scene" }).click();
+  await expect(caption).toContainText(/Dr\. Watson|Hansom driver/, { timeout: 20_000 });
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (window as Window & {
+            __coldEmberAudioDebug?: { assetPlaybackCount?: number; scene?: string };
+          }).__coldEmberAudioDebug,
+      ),
+    )
+    .toMatchObject({ assetPlaybackCount: 4, scene: "passage" });
+  expect(audioRequests.some((url) => /\/ambience\/passage\./.test(url))).toBe(true);
+  expect(audioRequests.some((url) => /\/scenes\/passage-dialogue\./.test(url))).toBe(true);
+
+  await conversationConsole(page).getByRole("button", { name: "Turn conversation off" }).click();
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (window as Window & {
+            __coldEmberAudioDebug?: {
+              activeAssetSourceCount?: number;
+              activeAssetNodeCount?: number;
+              dialogueDucking?: boolean;
+              status?: string;
+            };
+          }).__coldEmberAudioDebug,
+      ),
+    )
+    .toMatchObject({
+      activeAssetSourceCount: 0,
+      activeAssetNodeCount: 0,
+      dialogueDucking: false,
+      status: "stopped",
+    });
+  await runtime.assertClean(testInfo);
+});
+
 test("keeps audio gesture-locked, persists mixer choices, and releases its lifecycle", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "detailed audio lifecycle runs once on desktop");
   const runtime = monitorRuntime(page);
@@ -260,11 +405,17 @@ test("keeps audio gesture-locked, persists mixer choices, and releases its lifec
     startInvocationCount: 0,
   });
   await expect(page.locator("audio[autoplay], video[autoplay]")).toHaveCount(0);
-  await expect(page.getByLabel("Cinematic sound controls")).toHaveCount(0);
+  await expect(conversationConsole(page)).toBeVisible();
+  await expect(conversationConsole(page)).toContainText(
+    /conversation on · starts with your first interaction/i,
+  );
+  await expect(
+    conversationConsole(page).getByRole("button", { name: "Turn conversation off" }),
+  ).toHaveAttribute("aria-pressed", "true");
 
-  const soundToggle = page.getByRole("button", { name: "Turn cinematic sound on" });
-  await soundToggle.click();
-  await expect(page.getByRole("button", { name: "Turn cinematic sound off" })).toHaveAttribute("aria-pressed", "true");
+  await expect(headerConversationToggle(page)).toHaveAccessibleName("Turn conversation off");
+  await unlockDefaultConversation(page);
+  await expect(headerConversationToggle(page)).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByLabel("Cinematic sound controls")).toBeVisible();
   await expect
     .poll(() =>
@@ -296,7 +447,6 @@ test("keeps audio gesture-locked, persists mixer choices, and releases its lifec
     .toMatchObject({ lastCue: "telegram" });
   await page.getByRole("button", { name: "Fold the telegram" }).click();
 
-  await page.getByRole("button", { name: "Hear conversation" }).click();
   const caption = page.getByRole("region", { name: "Dialogue caption" });
   await expect(caption).toBeVisible();
   await expect
@@ -327,19 +477,19 @@ test("keeps audio gesture-locked, persists mixer choices, and releases its lifec
     "href",
     /github\.com\/shanto12\/sherlock-cold-ember\/blob\/main\/docs\/dialogue-sources\.md/,
   );
-  await mixer.getByRole("button", { name: "Stop all sound" }).click();
-  await expect(mixer.getByRole("button", { name: "Start soundscape" })).toBeVisible();
-  await mixer.getByRole("button", { name: "Start soundscape" }).click();
-  await expect(mixer.getByRole("button", { name: "Stop all sound" })).toBeVisible();
+  await mixer.getByRole("button", { name: "Turn conversation off" }).click();
+  await expect(mixer.getByRole("button", { name: "Turn conversation on" })).toBeVisible();
+  await mixer.getByRole("button", { name: "Turn conversation on" }).click();
+  await expect(mixer.getByRole("button", { name: "Turn conversation off" })).toBeVisible();
   await mixer.getByLabel("Master").fill("64");
   await mixer.getByLabel("Atmosphere").fill("37");
   await mixer.getByLabel("Dialogue").fill("81");
   await mixer.getByRole("button", { name: "Close sound mixer" }).click();
 
-  const existingStop = page.getByRole("button", { name: "Stop conversation" }).first();
-  if (await existingStop.isVisible().catch(() => false)) await existingStop.click();
-  await page.getByRole("button", { name: "Hear conversation" }).click();
-  await expect(page.getByRole("button", { name: "Stop conversation" }).first()).toBeVisible();
+  await expect(caption).toBeVisible();
+  await expect(
+    conversationConsole(page).getByRole("button", { name: "Turn conversation off" }),
+  ).toBeVisible();
   const speechCancelsBeforeHide = await page.evaluate(
     () => (window as Window & { __qaSpeechCancels?: number }).__qaSpeechCancels ?? 0,
   );
@@ -371,7 +521,7 @@ test("keeps audio gesture-locked, persists mixer choices, and releases its lifec
       transientSourceCount: 0,
       transientNodeCount: 0,
     });
-  await expect(page.getByRole("button", { name: "Resume cinematic sound" })).toBeVisible();
+  await expect(headerConversationToggle(page)).toHaveAccessibleName("Turn conversation off");
   await expect
     .poll(() =>
       page.evaluate(
@@ -401,10 +551,13 @@ test("keeps audio gesture-locked, persists mixer choices, and releases its lifec
       ),
     )
     .toBe("running");
-  await expect(page.getByRole("button", { name: "Turn cinematic sound off" })).toBeVisible();
+  await expect(headerConversationToggle(page)).toHaveAccessibleName("Turn conversation off");
 
-  await page.getByRole("button", { name: "Mute cinematic sound" }).click();
-  await expect(page.getByLabel("Cinematic sound controls")).toHaveCount(0);
+  await conversationConsole(page).getByRole("button", { name: "Turn conversation off" }).click();
+  await expect(conversationConsole(page)).toBeVisible();
+  await expect(
+    conversationConsole(page).getByRole("button", { name: "Turn conversation on" }),
+  ).toHaveAttribute("aria-pressed", "false");
   await expect
     .poll(() =>
       page.evaluate(
@@ -434,18 +587,37 @@ test("keeps audio gesture-locked, persists mixer choices, and releases its lifec
     JSON.parse(localStorage.getItem("cold-ember-audio-settings") ?? "{}"),
   );
   expect(storedSettings).toMatchObject({ master: 0.64, ambience: 0.37, dialogue: 0.81 });
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem("cold-ember-conversation")))
+    .toBe("off");
 
   await page.reload();
   await waitForCasebookHydration(page);
-  await expect(page.getByRole("button", { name: "Turn cinematic sound on" })).toHaveAttribute("aria-pressed", "false");
+  await expect(headerConversationToggle(page)).toHaveAccessibleName("Turn conversation on");
+  await expect(headerConversationToggle(page)).toHaveAttribute("aria-pressed", "false");
   expect(
     await page.evaluate(
       () => (window as Window & { __qaAudioContextConstructed?: number }).__qaAudioContextConstructed,
     ),
   ).toBe(0);
 
-  await page.getByRole("button", { name: "Turn cinematic sound on" }).click();
-  await expect(page.getByRole("button", { name: "Turn cinematic sound off" })).toBeVisible();
+  await expect(
+    conversationConsole(page).getByRole("button", { name: "Turn conversation on" }),
+  ).toBeVisible();
+  await unlockDefaultConversation(page);
+  await page.waitForTimeout(400);
+  expect(
+    await page.evaluate(
+      () => (window as Window & { __qaSpeechRequests?: string[] }).__qaSpeechRequests?.length ?? 0,
+    ),
+  ).toBe(0);
+  await conversationConsole(page).getByRole("button", { name: "Turn conversation on" }).click();
+  await expect(page.getByRole("region", { name: "Dialogue caption" })).toBeVisible();
+
+  await headerConversationToggle(page).click();
+  await expect(headerConversationToggle(page)).toHaveAccessibleName("Turn conversation on");
+  await headerConversationToggle(page).click();
+  await expect(headerConversationToggle(page)).toHaveAccessibleName("Turn conversation off");
   await page.evaluate(() => {
     const qaWindow = window as Window & {
       __qaSetAudioHidden?: (hidden: boolean) => void;
@@ -453,7 +625,7 @@ test("keeps audio gesture-locked, persists mixer choices, and releases its lifec
     qaWindow.__qaSetAudioHidden?.(true);
     qaWindow.__qaSetAudioHidden?.(false);
     document.querySelector<HTMLButtonElement>(
-      '[aria-label="Turn cinematic sound off"]',
+      '.case-header [aria-label="Turn conversation off"]',
     )?.click();
   });
   await expect
@@ -495,15 +667,15 @@ test("keeps timed captions available when local speech synthesis is unavailable"
   await page.goto("/");
   await waitForCasebookHydration(page);
 
-  await page.getByRole("button", { name: /Enter with sound/i }).click();
-  await expect(page.getByLabel("Cinematic sound controls")).toBeVisible();
+  await unlockDefaultConversation(page);
+  await expect(conversationConsole(page)).toBeVisible();
   await expect(page.getByRole("region", { name: "Dialogue caption" })).toBeVisible();
   expect(
     await page.evaluate(
       () => (window as Window & { __qaSpeechRequests?: string[] }).__qaSpeechRequests?.length ?? 0,
     ),
   ).toBe(0);
-  await page.getByRole("button", { name: "Stop conversation" }).first().click();
+  await conversationConsole(page).getByRole("button", { name: "Turn conversation off" }).click();
   await runtime.assertClean(testInfo);
 });
 
@@ -514,7 +686,7 @@ test("completes a four-line conversation and returns every control to its ready 
   await page.goto("/");
   await waitForCasebookHydration(page);
 
-  await page.getByRole("button", { name: /Enter with sound/i }).click();
+  await unlockDefaultConversation(page);
   await expect
     .poll(() =>
       page.evaluate(
@@ -542,8 +714,10 @@ test("completes a four-line conversation and returns every control to its ready 
     ),
   ).toBe(4);
   await expect(page.getByRole("region", { name: "Dialogue caption" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Hear conversation" })).toBeVisible();
-  await page.getByRole("button", { name: "Turn cinematic sound off" }).click();
+  await expect(
+    conversationConsole(page).getByRole("button", { name: "Turn conversation off" }),
+  ).toBeVisible();
+  await conversationConsole(page).getByRole("button", { name: "Turn conversation off" }).click();
   await runtime.assertClean(testInfo);
 });
 
@@ -560,7 +734,7 @@ test("uses live timed captions instead of silent synthesis when persisted voice 
   await page.goto("/");
   await waitForCasebookHydration(page);
 
-  await page.getByRole("button", { name: /Enter with sound/i }).click();
+  await unlockDefaultConversation(page);
   const caption = page.getByRole("region", { name: "Dialogue caption" });
   await expect(caption).toBeVisible();
   await expect(caption.locator(".caption-transcript")).toHaveAttribute("aria-live", "polite");
@@ -570,7 +744,7 @@ test("uses live timed captions instead of silent synthesis when persisted voice 
       () => (window as Window & { __qaSpeechRequests?: string[] }).__qaSpeechRequests?.length ?? 0,
     ),
   ).toBe(0);
-  await page.getByRole("button", { name: "Stop conversation" }).first().click();
+  await conversationConsole(page).getByRole("button", { name: "Turn conversation off" }).click();
   await runtime.assertClean(testInfo);
 });
 
@@ -581,11 +755,11 @@ test("ignores a late speech start event after the visitor stops the conversation
   await page.goto("/");
   await waitForCasebookHydration(page);
 
-  await page.getByRole("button", { name: /Enter with sound/i }).click();
+  await unlockDefaultConversation(page);
   const caption = page.getByRole("region", { name: "Dialogue caption" });
   await expect(caption).toBeVisible();
   await expect(caption.locator(".caption-transcript")).toHaveAttribute("aria-live", "polite");
-  await page.getByRole("button", { name: "Stop conversation" }).first().click();
+  await conversationConsole(page).getByRole("button", { name: "Turn conversation off" }).click();
   await page.waitForTimeout(800);
   await expect(caption).toHaveCount(0);
   await expect
@@ -607,8 +781,8 @@ test("continues with captioned dialogue when Web Audio exists but cannot initial
   await page.goto("/");
   await waitForCasebookHydration(page);
 
-  await expect(page.getByRole("button", { name: "Turn cinematic sound on" })).toBeEnabled();
-  await page.getByRole("button", { name: /Enter with sound/i }).click();
+  await expect(headerConversationToggle(page)).toHaveAccessibleName("Turn conversation off");
+  await unlockDefaultConversation(page);
   await expect(page.getByRole("region", { name: "Dialogue caption" })).toBeVisible();
   await expect(page.locator("#audio-support-note")).toContainText(/could not start/i);
   await expect(page.getByLabel("Cinematic sound controls")).toBeVisible();
@@ -622,7 +796,7 @@ test("continues with captioned dialogue when Web Audio exists but cannot initial
       ),
     )
     .toMatchObject({ initialized: false, started: false, status: "unavailable" });
-  await page.getByRole("button", { name: "Stop conversation" }).first().click();
+  await conversationConsole(page).getByRole("button", { name: "Turn conversation off" }).click();
   await runtime.assertClean(testInfo);
 });
 
@@ -634,7 +808,7 @@ for (const speechFailure of ["throw", "error"] as const) {
     await page.goto("/");
     await waitForCasebookHydration(page);
 
-    await page.getByRole("button", { name: /Enter with sound/i }).click();
+    await unlockDefaultConversation(page);
     const caption = page.getByRole("region", { name: "Dialogue caption" });
     await expect(caption).toBeVisible();
     const firstCaption = await caption.locator(".caption-transcript p").innerText();
@@ -650,20 +824,21 @@ for (const speechFailure of ["throw", "error"] as const) {
         ),
       )
       .toBe(true);
-    await page.getByRole("button", { name: "Stop conversation" }).first().click();
+    await conversationConsole(page).getByRole("button", { name: "Turn conversation off" }).click();
     await expect(caption).toHaveCount(0);
     await runtime.assertClean(testInfo);
   });
 }
 
-test("cancels delayed dialogue when startup becomes hidden or the active scene changes", async ({ page }, testInfo) => {
+test("cancels delayed dialogue when hidden and follows the latest scene after navigation", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "delayed lifecycle race runs once on desktop");
   const runtime = monitorRuntime(page);
   await installAudioHarness(page, { delayedAudioStartMs: 2_500 });
   await page.goto("/");
   await waitForCasebookHydration(page);
 
-  await page.getByRole("button", { name: /Enter with sound/i }).click();
+  await unlockDefaultConversation(page);
+  await page.waitForTimeout(400);
   await page.evaluate(() =>
     (window as Window & { __qaSetAudioHidden?: (hidden: boolean) => void })
       .__qaSetAudioHidden?.(true),
@@ -696,7 +871,7 @@ test("cancels delayed dialogue when startup becomes hidden or the active scene c
       transientSourceCount: 0,
       transientNodeCount: 0,
     });
-  await expect(page.getByLabel("Cinematic sound controls")).toHaveCount(0);
+  await expect(conversationConsole(page)).toBeVisible();
   expect(
     await page.evaluate(
       () => (window as Window & { __qaSpeechRequests?: string[] }).__qaSpeechRequests?.length ?? 0,
@@ -708,10 +883,9 @@ test("cancels delayed dialogue when startup becomes hidden or the active scene c
       .__qaSetAudioHidden?.(false),
   );
   await page.waitForTimeout(450);
-  await expect(page.getByLabel("Cinematic sound controls")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Turn cinematic sound on" })).toBeVisible();
+  await expect(conversationConsole(page)).toBeVisible();
+  await expect(headerConversationToggle(page)).toHaveAccessibleName("Turn conversation off");
 
-  await page.getByRole("button", { name: /Enter with sound/i }).click();
   await page.getByRole("button", { name: "Next scene" }).click();
   await expect
     .poll(() =>
@@ -722,14 +896,19 @@ test("cancels delayed dialogue when startup becomes hidden or the active scene c
       ),
     )
     .toBe("passage");
-  await expect(page.getByRole("button", { name: "Turn cinematic sound off" })).toBeVisible();
-  expect(
-    await page.evaluate(
-      () => (window as Window & { __qaSpeechRequests?: string[] }).__qaSpeechRequests?.length ?? 0,
-    ),
-  ).toBe(0);
-  await expect(page.getByRole("region", { name: "Dialogue caption" })).toHaveCount(0);
-  await page.getByRole("button", { name: "Turn cinematic sound off" }).click();
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => (window as Window & { __qaSpeechRequests?: string[] }).__qaSpeechRequests?.length ?? 0,
+      ),
+    )
+    .toBe(1);
+  await expect(page.getByRole("region", { name: "Dialogue caption" })).toContainText("Dr. Watson");
+  const requests = await page.evaluate(
+    () => (window as Window & { __qaSpeechRequests?: string[] }).__qaSpeechRequests ?? [],
+  );
+  expect(requests[0]).toMatch(/would not miss it/i);
+  await conversationConsole(page).getByRole("button", { name: "Turn conversation off" }).click();
   await runtime.assertClean(testInfo);
 });
 
@@ -739,19 +918,16 @@ test("fails closed without Web Audio and supports the prefixed context fallback"
   await installAudioHarness(page, { disableAudio: true });
   await page.goto("/");
   await waitForCasebookHydration(page);
-  const dialogueControls = page.getByRole("button", { name: "Open captioned dialogue controls" });
-  await expect(dialogueControls).toBeEnabled();
-  await expect(dialogueControls).not.toHaveAttribute("aria-pressed");
-  await expect(dialogueControls).toHaveAttribute("aria-haspopup", "dialog");
-  await dialogueControls.click();
+  await expect(headerConversationToggle(page)).toHaveAccessibleName("Turn conversation off");
+  await unlockDefaultConversation(page);
+  await page.getByRole("button", { name: "Mixer", exact: true }).click();
   const fallbackMixer = page.getByRole("dialog", { name: "Cinematic sound mixer" });
-  await expect(fallbackMixer.locator(".sound-unavailable")).toContainText(/cannot generate the ambient soundscape/i);
-  await expect(fallbackMixer.getByRole("button", { name: "Start soundscape" })).toBeDisabled();
-  await expect(fallbackMixer.getByRole("button", { name: "Play scene conversation" })).toBeEnabled();
+  await expect(fallbackMixer.locator(".sound-unavailable")).toContainText(/cannot play the produced soundscape/i);
+  await expect(fallbackMixer.getByRole("button", { name: "Turn conversation off" })).toBeEnabled();
+  await expect(fallbackMixer.getByRole("button", { name: "Replay active scene" })).toBeEnabled();
   await fallbackMixer.getByRole("button", { name: "Close sound mixer" }).click();
-  await page.getByRole("button", { name: "Play captioned summons" }).click();
   await expect(page.getByRole("region", { name: "Dialogue caption" })).toBeVisible();
-  await expect(page.getByLabel("Cinematic sound controls")).toBeVisible();
+  await expect(conversationConsole(page)).toBeVisible();
   const unavailable = await page.evaluate(
     () =>
       (window as Window & {
@@ -763,7 +939,7 @@ test("fails closed without Web Audio and supports the prefixed context fallback"
     initialized: false,
     started: false,
   });
-  await page.getByRole("button", { name: "Stop conversation" }).first().click();
+  await conversationConsole(page).getByRole("button", { name: "Turn conversation off" }).click();
   await runtime.assertClean(testInfo);
 
   const prefixedPage = await context.newPage();
@@ -771,25 +947,26 @@ test("fails closed without Web Audio and supports the prefixed context fallback"
   await installAudioHarness(prefixedPage, { webkitOnly: true });
   await prefixedPage.goto("/");
   await waitForCasebookHydration(prefixedPage);
-  await prefixedPage.getByRole("button", { name: "Turn cinematic sound on" }).click();
+  await expect(headerConversationToggle(prefixedPage)).toHaveAccessibleName("Turn conversation on");
+  await headerConversationToggle(prefixedPage).click();
   await expect(prefixedPage.getByLabel("Cinematic sound controls")).toBeVisible();
   expect(
     await prefixedPage.evaluate(
       () => (window as Window & { __qaAudioContextConstructed?: number }).__qaAudioContextConstructed,
     ),
   ).toBe(1);
-  await prefixedPage.getByRole("button", { name: "Turn cinematic sound off" }).click();
+  await headerConversationToggle(prefixedPage).click();
   await prefixedRuntime.assertClean(testInfo);
   await prefixedPage.close();
 });
 
-test("starts and stops the authored conversation in all five scenes", async ({ page }, testInfo) => {
+test("starts the authored conversation automatically once in all five scene entries", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "full scene dialogue matrix runs once on desktop");
   const runtime = monitorRuntime(page);
   await installAudioHarness(page);
   await page.goto("/");
   await waitForCasebookHydration(page);
-  await page.getByRole("button", { name: "Turn cinematic sound on" }).click();
+  await unlockDefaultConversation(page);
 
   const expected = [
     ["summons", "Mrs. Hudson"],
@@ -810,7 +987,6 @@ test("starts and stops the authored conversation in all five scenes", async ({ p
         ),
       )
       .toBe(scene);
-    await page.getByRole("button", { name: "Hear conversation" }).click();
     const caption = page.getByRole("region", { name: "Dialogue caption" });
     await expect(caption).toContainText(firstSpeaker);
     await expect
@@ -823,19 +999,14 @@ test("starts and stops the authored conversation in all five scenes", async ({ p
         ),
       )
       .toMatchObject({ scene, lineCount: 4, playing: true });
-    await page.getByRole("button", { name: "Stop conversation" }).first().click();
-    await expect(caption).toHaveCount(0);
     if (index < expected.length - 1) {
       await page.getByRole("button", { name: "Next scene" }).click();
     }
   }
 
   await page.locator(".commission-section").scrollIntoViewIfNeeded();
-  await expect(page.getByRole("button", { name: "Hear conversation" })).toBeVisible();
-  await page.getByRole("button", { name: "Hear conversation" }).click();
   await expect(page.getByRole("region", { name: "Dialogue caption" })).toContainText("Inspector Lestrade");
-  await page.getByRole("button", { name: "Stop conversation" }).first().click();
-  await page.getByRole("button", { name: "Turn cinematic sound off" }).click();
+  await conversationConsole(page).getByRole("button", { name: "Turn conversation off" }).click();
   await runtime.assertClean(testInfo);
 });
 
@@ -846,7 +1017,7 @@ test("keeps the sound console, captions, and mixer safe in short landscape and e
   await installAudioHarness(page);
   await page.goto("/");
   await waitForCasebookHydration(page);
-  await page.getByRole("button", { name: /Enter with sound/i }).click();
+  await unlockDefaultConversation(page);
   await expect(page.getByRole("region", { name: "Dialogue caption" })).toBeVisible();
 
   const landscapeBoxes = await page.evaluate(() => {
@@ -868,7 +1039,7 @@ test("keeps the sound console, captions, and mixer safe in short landscape and e
   expect(landscapeBoxes.rail.bottom).toBeLessThanOrEqual(landscapeBoxes.viewport.height);
   expect(landscapeBoxes.caption.right).toBeLessThanOrEqual(landscapeBoxes.viewport.width);
 
-  await page.getByRole("button", { name: "Stop conversation" }).first().click();
+  await conversationConsole(page).getByRole("button", { name: "Turn conversation off" }).click();
   await page.setViewportSize({ width: 390, height: 844 });
   await page.addStyleTag({ content: "html { font-size: 125% !important; }" });
   await page.getByRole("button", { name: "Mixer", exact: true }).click();
@@ -882,7 +1053,6 @@ test("keeps the sound console, captions, and mixer safe in short landscape and e
   await mixer.getByRole("button", { name: "Close sound mixer" }).click();
   await expectNoHorizontalOverflow(page);
   await expectPrimaryTouchTargets(page);
-  await page.getByRole("button", { name: "Turn cinematic sound off" }).click();
   await runtime.assertClean(testInfo);
 });
 
@@ -892,8 +1062,8 @@ test("keeps scene dialogue, captions, and mixer controls usable at every release
   await page.goto("/");
   await waitForCasebookHydration(page);
 
-  await page.getByRole("button", { name: /Enter with sound/i }).click();
-  await expect(page.getByLabel("Cinematic sound controls")).toBeVisible();
+  await unlockDefaultConversation(page);
+  await expect(conversationConsole(page)).toBeVisible();
   const caption = page.getByRole("region", { name: "Dialogue caption" });
   await expect(caption).toBeVisible();
   await expect(caption).toContainText(/Mrs\. Hudson|Dr\. Watson|Sherlock Holmes/i);
@@ -911,10 +1081,11 @@ test("keeps scene dialogue, captions, and mixer controls usable at every release
       ),
     )
     .toBe(false);
-  await mixer.getByRole("button", { name: /Play scene conversation/i }).click();
+  await mixer.getByRole("button", { name: "Close sound mixer" }).click();
   await expect(mixer).not.toBeVisible();
   await expect(caption).toBeVisible();
-  await page.getByRole("button", { name: "Stop conversation" }).first().click();
+  await conversationConsole(page).getByRole("button", { name: "Turn conversation off" }).click();
+  await conversationConsole(page).getByRole("button", { name: "Turn conversation on" }).click();
   await page.getByRole("button", { name: "Mixer", exact: true }).click();
   await expect(mixer).toBeVisible();
   await mixer.getByRole("button", { name: "Close sound mixer" }).click();
@@ -932,11 +1103,8 @@ test("keeps scene dialogue, captions, and mixer controls usable at every release
     )
     .toBe("room");
 
-  await page.getByRole("button", { name: "Hear conversation" }).click();
   await expect(caption).toContainText(/Lestrade|Watson|Holmes/i);
-  const finalStop = page.getByRole("button", { name: "Stop conversation" }).first();
-  if (await finalStop.isVisible().catch(() => false)) await finalStop.click();
-  else await expect(page.getByRole("button", { name: "Hear conversation" })).toBeVisible();
+  await conversationConsole(page).getByRole("button", { name: "Turn conversation off" }).click();
   await expectNoHorizontalOverflow(page);
   await expectPrimaryTouchTargets(page);
   await runtime.assertClean(testInfo);

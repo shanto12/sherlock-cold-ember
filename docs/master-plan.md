@@ -86,6 +86,28 @@ Deliverables:
 - New automated and real-Chrome production evidence covering autoplay lock, audio context count, visibility suspension, speech/caption playback, every mixer control, mobile stacking, CSP, console, network, and complete teardown
 - Public v1.1.0 release only after GitHub, Netlify, Sites, CI, and the evidence matrix agree on the same source commit
 
+## Phase 8 — Original performance masters and default-on scenes (v1.2.0)
+
+Deliverables:
+
+- Conversation preference on by default, with the first ordinary trusted page
+  interaction unlocking the active scene and no dedicated “Hear conversation”
+  requirement
+- Persistent, immediately effective conversation off/on control in the header,
+  console, and mixer
+- Five self-hosted cinematic scene masters produced offline from original,
+  non-celebrity voices, authored dialogue, London ambience, horses, carriage,
+  rain, fire, clock, telegram, glass, paper, and deduction Foley
+- Build-time generation only: the provider credential remains in the maintainer's
+  secure credential store and is absent from source, bundles, deployments, and
+  visitor network traffic
+- Authored cue timings for synchronized captions plus graceful generated-audio,
+  system-voice, and timed-caption fallback layers
+- Same-origin-only media policy, production asset inventory, SHA-256 hashes,
+  performance provenance, and recruiter-safe public documentation
+- A new full GitHub, CI, Netlify, Sites, Playwright, real-Chrome, mobile,
+  security-header, network, console, and evidence-matrix release proof
+
 ## Historical boundaries
 
 - Hansom: two wheels, one horse, enclosed passenger compartment, elevated rear driver, roof trapdoor, and wet wheel spray

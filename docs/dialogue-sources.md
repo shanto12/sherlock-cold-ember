@@ -21,7 +21,9 @@ The well-known “game is afoot” line was deliberately excluded because *The A
 ## Voice and sound production
 
 - No film, television, game, audiobook, actor performance, or actor likeness is sampled or imitated.
-- Dialogue is rendered on demand only when the visitor's browser exposes a local system voice. Voice choice varies by device and is described only by character direction, never by performer identity; captions continue without speech when no local voice is available.
-- Rain, fire, hoofbeats, wheels, clockwork, room tone, paper, glass, and reveal accents are generated procedurally with the Web Audio API. The repository ships no third-party sound recordings.
-- Sound never starts on page load. A visitor must explicitly enter the soundscape, can stop it immediately, and can adjust master, ambience, and dialogue levels.
+- Seven original, non-celebrity Victorian character voices were designed and rendered offline with ElevenLabs. Every direction explicitly rejects actor, celebrity, adaptation, and living-person likenesses; no account voice clone is used. The browser receives only fingerprinted, self-hosted MP3 files and never receives a provider key or sends visitor data to a speech service.
+- Rain, fire, hoofbeats, wheels, clockwork, room tone, paper, glass, and reveal accents use original generated ambience/Foley stems plus a bounded procedural Web Audio enhancement and fallback. The repository ships no stock, actor, audiobook, film, television, or game recording.
+- Conversation preference is on by default, but browser security prevents audible playback before a trusted interaction. The first ordinary click, tap, or key press unlocks the current scene; the visitor can turn the full experience off immediately and adjust master, ambience, and dialogue levels.
 - Synchronized visual captions remain available for every line, including original dialogue and canonical quotations.
+
+The public production plan, mix targets, objective loudness results, hashes, and forced-alignment evidence are documented in [`scripts/audio/PROVENANCE.md`](../scripts/audio/PROVENANCE.md). Local system speech is retained only as a failure fallback.
