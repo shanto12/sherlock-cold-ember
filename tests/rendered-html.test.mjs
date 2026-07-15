@@ -32,6 +32,58 @@ async function render(path = "/") {
   );
 }
 
+test("routes Sites audio through the immutable Worker cache adapter", async () => {
+  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
+  workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}-audio`);
+  const { default: worker } = await import(workerUrl.href);
+  let routedPath = null;
+  let forwardedRange = null;
+
+  const response = await worker.fetch(
+    new Request(
+      "http://localhost/audio/cinematic/ambience/room.8234ba09ffb9.mp3",
+      { headers: { range: "bytes=0-1023" } },
+    ),
+    {
+      ASSETS: {
+        fetch: async (request) => {
+          routedPath = new URL(request.url).pathname;
+          forwardedRange = request.headers.get("range");
+          return new Response(new Uint8Array(1024), {
+            status: 206,
+            headers: {
+              "accept-ranges": "bytes",
+              "content-length": "1024",
+              "content-range": "bytes 0-1023/721650",
+              "content-type": "audio/mpeg",
+            },
+          });
+        },
+      },
+      IMAGES: {
+        input: () => ({
+          transform: () => ({
+            output: async () => ({ response: () => new Response("image") }),
+          }),
+        }),
+      },
+    },
+    {
+      waitUntil() {},
+      passThroughOnException() {},
+    },
+  );
+
+  assert.equal(routedPath, "/_audio/cinematic/ambience/room.8234ba09ffb9.mp3");
+  assert.equal(forwardedRange, "bytes=0-1023");
+  assert.equal(response.status, 206);
+  assert.equal(response.headers.get("content-type"), "audio/mpeg");
+  assert.equal(response.headers.get("content-range"), "bytes 0-1023/721650");
+  assert.equal(response.headers.get("cache-control"), "public, max-age=31536000, immutable");
+  assert.equal(response.headers.get("x-content-type-options"), "nosniff");
+  assert.equal((await response.arrayBuffer()).byteLength, 1024);
+});
+
 test("server-renders the complete moving casebook", async () => {
   const response = await render();
   assert.equal(response.status, 200);
@@ -115,5 +167,14 @@ test("ships the original media, Netlify form detector, and no starter surface", 
     await readFile(new URL("../dist/server/wrangler.json", import.meta.url), "utf8"),
   );
   assert.equal(wranglerConfig.assets?.binding, "ASSETS");
-  assert.deepEqual(wranglerConfig.assets?.run_worker_first, ["/audio/*"]);
+  assert.equal(wranglerConfig.assets?.run_worker_first, undefined);
+
+  await assert.rejects(access(new URL("../dist/client/audio", import.meta.url)));
+  const routedAudio = await stat(
+    new URL(
+      "../dist/client/_audio/cinematic/ambience/room.8234ba09ffb9.mp3",
+      import.meta.url,
+    ),
+  );
+  assert.equal(routedAudio.size, 721_650);
 });

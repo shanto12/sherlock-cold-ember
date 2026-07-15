@@ -16,7 +16,6 @@ const localBindingConfig = {
   compatibility_flags: ["nodejs_compat"],
   assets: {
     binding: "ASSETS",
-    run_worker_first: ["/audio/*"],
   },
   d1_databases: d1
     ? [
