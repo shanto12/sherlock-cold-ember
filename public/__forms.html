@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Consultation form detector</title>
+  </head>
+  <body>
+    <!-- Netlify parses this static form at deploy time. The interactive copy lives in the app. -->
+    <form
+      name="consultation"
+      method="POST"
+      data-netlify="true"
+      netlify-honeypot="bot-field"
+      hidden
+    >
+      <input type="hidden" name="form-name" value="consultation" />
+      <p hidden>
+        <label>Do not fill this out: <input name="bot-field" /></label>
+      </p>
+      <label>Name <input name="name" type="text" /></label>
+      <label>Email <input name="email" type="email" /></label>
+      <label>Project type <select name="project-type"><option value="immersive-story">Immersive story</option></select></label>
+      <label>Brief <textarea name="brief"></textarea></label>
+      <label><input name="consent" type="checkbox" value="yes" /> I consent to being contacted.</label>
+      <button type="submit">Send inquiry</button>
+    </form>
+  </body>
+</html>
