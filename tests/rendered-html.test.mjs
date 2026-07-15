@@ -115,5 +115,5 @@ test("ships the original media, Netlify form detector, and no starter surface", 
     await readFile(new URL("../dist/server/wrangler.json", import.meta.url), "utf8"),
   );
   assert.equal(wranglerConfig.assets?.binding, "ASSETS");
-  assert.deepEqual(wranglerConfig.assets?.run_worker_first, ["/audio/*"]);
+  assert.equal(wranglerConfig.assets?.run_worker_first, true);
 });
