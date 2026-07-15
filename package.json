@@ -24,7 +24,7 @@
     "start:next": "next start",
     "test": "npm run build && node --test tests/rendered-html.test.mjs",
     "test:e2e": "playwright test",
-    "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
+    "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "audit:prod": "npm audit --omit=dev --audit-level=high",
     "verify": "npm run lint && npm run typecheck && npm test && npm run build:netlify && npm run audit:prod"

@@ -453,7 +453,7 @@ export function Casebook() {
       if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
         await new Promise((resolve) => window.setTimeout(resolve, 350));
       } else {
-        const response = await fetch("/", {
+        const response = await fetch("/__forms.html", {
           method: "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
           body: encoded.toString(),

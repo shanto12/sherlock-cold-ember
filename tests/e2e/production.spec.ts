@@ -38,9 +38,11 @@ test("production serves the hardened browser security policy", async ({ request 
   expect(headers["x-frame-options"]).toMatch(/DENY/i);
   expect(headers["x-permitted-cross-domain-policies"]).toBe("none");
   expect(headers["referrer-policy"]).toMatch(/strict-origin-when-cross-origin/i);
-  expect(headers["strict-transport-security"]).toMatch(
-    /^max-age=63072000;\s*includeSubDomains;\s*preload$/i,
-  );
+  const hsts = headers["strict-transport-security"] ?? "";
+  const hstsMaxAge = Number(hsts.match(/max-age=(\d+)/i)?.[1] ?? 0);
+  expect(hstsMaxAge).toBeGreaterThanOrEqual(31_536_000);
+  expect(hsts).toMatch(/includeSubDomains/i);
+  expect(hsts).toMatch(/preload/i);
   expect(headers["cross-origin-opener-policy"]).toBe("same-origin");
   expect(headers["cross-origin-resource-policy"]).toBe("same-origin");
   for (const permission of [

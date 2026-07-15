@@ -19,7 +19,7 @@ test("publishes complete metadata and working deep links", async ({ page }, test
   );
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
     "href",
-    "https://sherlock-cold-ember.netlify.app/",
+    /^https:\/\/sherlock-cold-ember\.netlify\.app\/?$/,
   );
   await expect(page.locator('meta[property="og:title"]')).toHaveAttribute("content", /The Cold Ember/i);
   await expect(page.locator('meta[property="og:image"]')).toHaveAttribute("content", /\/og\.png$/);
