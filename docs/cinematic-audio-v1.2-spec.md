@@ -1,6 +1,6 @@
 # Cinematic audio v1.2 specification
 
-Status: implementation and release verification in progress
+Status: release-candidate verification complete; immutable release status is recorded in the public GitHub `v1.2.0` release
 
 ## Audience promise
 
