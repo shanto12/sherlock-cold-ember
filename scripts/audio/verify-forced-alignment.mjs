@@ -30,8 +30,7 @@ const key = execFileSync(
 if (!/^sk_[A-Za-z0-9]+$/.test(key)) throw new Error("Keychain credential unavailable.");
 
 const finiteNonNegative = (value) => {
-  const number = Number(value);
-  return Number.isFinite(number) && number >= 0 ? number : null;
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : null;
 };
 
 const assertContainedPath = (parent, path, label) => {
@@ -92,17 +91,21 @@ for (const [sceneId, scene] of Object.entries(manifest.scenes)) {
     throw new Error(`Forced alignment ${sceneId} returned unexpected content type ${contentType ?? "missing"}.`);
   }
   const alignment = await response.json();
-  const words = Array.isArray(alignment.words)
-    ? alignment.words
-        .map((word) => ({
-          start: finiteNonNegative(word?.start),
-          end: finiteNonNegative(word?.end),
-        }))
-        .filter((word) => word.start !== null && word.end !== null)
-    : [];
+  if (!Array.isArray(alignment.words)) {
+    throw new Error(`Forced alignment ${sceneId} returned no word array.`);
+  }
+  const words = alignment.words.map((word) => ({
+    start: finiteNonNegative(word?.start),
+    end: finiteNonNegative(word?.end),
+  }));
+  if (words.some((word) => word.start === null || word.end === null)) {
+    throw new Error(`Forced alignment ${sceneId} returned an invalid word timestamp.`);
+  }
+  const loss = finiteNonNegative(alignment.loss);
+  if (loss === null) throw new Error(`Forced alignment ${sceneId} returned an invalid loss value.`);
   results[sceneId] = {
     provider: "ElevenLabs Forced Alignment",
-    loss: Math.round((finiteNonNegative(alignment.loss) ?? 0) * 1_000_000) / 1_000_000,
+    loss: Math.round(loss * 1_000_000) / 1_000_000,
     wordsAligned: words.length,
     transcriptCharacters: transcript.length,
     firstWordStartSeconds: words[0]?.start ?? null,

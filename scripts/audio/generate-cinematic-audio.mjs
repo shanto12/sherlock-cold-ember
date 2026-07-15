@@ -156,9 +156,10 @@ const validateAlignment = (value, label) => {
 };
 
 const finiteNonNegative = (value, label) => {
-  const number = Number(value);
-  if (!Number.isFinite(number) || number < 0) throw new Error(`${label} is invalid.`);
-  return number;
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+    throw new Error(`${label} is invalid.`);
+  }
+  return value;
 };
 
 const run = (program, args, options = {}) => {
