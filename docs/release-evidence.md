@@ -17,7 +17,7 @@ deployment credential, browser secret, private email address, or provider key.
 | Netlify immutable deploy | https://6a57f5d3dd7fdd0496d11e44--sherlock-cold-ember.netlify.app |
 | Private Sites parity | https://the-cold-ember-casebook.shanto.chatgpt.site — version 11 `appgprj_6a57a5a66324819181d4c4a018e4fd5f~appgver_46e1015321b88191bbebc6b84812ed43`; deploy `appgdep_6a57f61d4abc8191aae71dabe33fb202` succeeded |
 | Source parity | Netlify deploy title and Sites version source both identify the exact verified commit above; local HEAD and `origin/main` matched |
-| Evidence window | July 15, 2026 through 4:32:54 PM CDT |
+| Evidence window | July 15, 2026 through 4:36:46 PM CDT |
 
 The Netlify deployment was a direct production publish, so Netlify reports a
 null `commit_ref`. Provenance is established by its exact-SHA deploy title,
@@ -117,10 +117,12 @@ warnings and zero errors; the extension messages are not application findings.
 ## Closeout boundary
 
 This record identifies the exact verified application commit. The commit
-containing this evidence file changes documentation only. After it merges, both
-hosts are rebuilt from that evidence commit and receive an exact-source smoke
-check; the immutable tag, final deployment identifiers, branch protection, and
-release closeout are recorded in the public GitHub `v1.2.0` release.
+containing this evidence file changes documentation plus release-verification
+test/configuration hardening only; it changes no application runtime code or
+asset. After it merges, both hosts are rebuilt from that evidence commit and
+receive an exact-source smoke check; the immutable tag, final deployment
+identifiers, branch protection, and release closeout are recorded in the public
+GitHub `v1.2.0` release.
 
 ## Runtime verification disposition
 
