@@ -475,7 +475,7 @@ test("keeps audio gesture-locked, persists mixer choices, and releases its lifec
   await expect(mixer).toBeVisible();
   await expect(mixer.getByRole("link", { name: /Read dialogue and sound provenance/i })).toHaveAttribute(
     "href",
-    /github\.com\/shanto12\/sherlock-cold-ember\/blob\/main\/docs\/dialogue-sources\.md/,
+    "https://github.com/shanto12/sherlock-cold-ember/blob/main/docs/dialogue-sources.md",
   );
   await mixer.getByRole("button", { name: "Turn conversation off" }).click();
   await expect(mixer.getByRole("button", { name: "Turn conversation on" })).toBeVisible();

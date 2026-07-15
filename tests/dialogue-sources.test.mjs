@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { parse } from "parse5";
 import ts from "typescript";
 
 const sourcePath = new URL("../lib/dialogue-script.ts", import.meta.url);
@@ -14,6 +15,29 @@ const { outputText } = ts.transpileModule(source, {
 });
 const moduleUrl = `data:text/javascript;base64,${Buffer.from(outputText).toString("base64")}`;
 const { DIALOGUES, DIALOGUE_SOURCES } = await import(moduleUrl);
+
+const SKIPPED_HTML_NODES = new Set(["script", "style", "template"]);
+
+const extractVisibleText = (html) => {
+  const chunks = [];
+  const visit = (node) => {
+    if (SKIPPED_HTML_NODES.has(node.nodeName)) return;
+    if (node.nodeName === "#text") {
+      chunks.push(node.value);
+      return;
+    }
+    for (const child of node.childNodes ?? []) visit(child);
+  };
+  visit(parse(html));
+  return chunks.join(" ");
+};
+
+const normalizeText = (value) =>
+  value
+    .normalize("NFKD")
+    .toLocaleLowerCase("en")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 
 const EXPECTED_CANONICAL_ECHOES = [
   {
@@ -94,28 +118,13 @@ if (process.env.VERIFY_EXTERNAL_DIALOGUE_SOURCES === "1") {
     const results = await Promise.all(
       DIALOGUE_SOURCES.map(async (item) => {
         const response = await fetch(item.url, {
-          headers: { "user-agent": "sherlock-cold-ember-release-verifier/1.1" },
+          headers: { "user-agent": "sherlock-cold-ember-release-verifier/1.2" },
           redirect: "follow",
         });
         const html = await response.text();
         return { html, item, response };
       }),
     );
-
-    const normalize = (value) =>
-      value
-        .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
-        .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ")
-        .replace(/<[^>]+>/g, " ")
-        .replace(/&nbsp;|&#160;/gi, " ")
-        .replace(/&amp;/gi, "&")
-        .replace(/&quot;|&#34;/gi, '"')
-        .replace(/&#39;|&apos;/gi, "'")
-        .replace(/&#(\d+);/g, (_match, code) => String.fromCodePoint(Number(code)))
-        .normalize("NFKD")
-        .toLocaleLowerCase("en")
-        .replace(/[^a-z0-9]+/g, " ")
-        .trim();
 
     for (const { item, response } of results) {
       assert.equal(response.ok, true, `${item.story} returned ${response.status}`);
@@ -128,7 +137,7 @@ if (process.env.VERIFY_EXTERNAL_DIALOGUE_SOURCES === "1") {
       const fetched = results.find(({ item }) => item.url === sourceRecord.url);
       assert.ok(fetched, `Missing fetched source for ${echo.story}`);
       assert.equal(
-        normalize(fetched.html).includes(normalize(echo.text)),
+        normalizeText(extractVisibleText(fetched.html)).includes(normalizeText(echo.text)),
         true,
         `Primary text did not contain the credited line: ${echo.text}`,
       );

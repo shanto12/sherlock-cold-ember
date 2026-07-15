@@ -124,7 +124,11 @@ test("serves crawl routes, social art, icons, form markup, and every scene asset
   expect(socialCardBody.readUInt32BE(16)).toBe(1200);
   expect(socialCardBody.readUInt32BE(20)).toBe(630);
   expect(favicon.status()).toBe(200);
-  expect(favicon.headers()["content-type"]).toMatch(/^image\/x-icon|image\/vnd\.microsoft\.icon/i);
+  const faviconContentType = favicon.headers()["content-type"]
+    ?.split(";", 1)[0]
+    .trim()
+    .toLowerCase();
+  expect(["image/x-icon", "image/vnd.microsoft.icon"]).toContain(faviconContentType);
   expect(formDetector.status()).toBe(200);
   expect(await formDetector.text()).toMatch(/name=["']consultation["']/i);
   expect(missing.status()).toBe(404);

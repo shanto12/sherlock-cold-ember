@@ -11,18 +11,23 @@
  */
 
 import { execFileSync, spawnSync } from "node:child_process";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
+  closeSync,
   copyFileSync,
   existsSync,
+  fsyncSync,
   mkdirSync,
+  openSync,
   readFileSync,
   readdirSync,
+  renameSync,
   rmSync,
   statSync,
+  unlinkSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, join, relative, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { production } from "./production-plan.mjs";
 
@@ -61,6 +66,100 @@ const sha256File = (path) =>
   createHash("sha256").update(readFileSync(path)).digest("hex");
 
 const ensureDirectory = (path) => mkdirSync(path, { recursive: true });
+
+const readOptionalFile = (path, encoding) => {
+  try {
+    return readFileSync(path, encoding);
+  } catch (error) {
+    if (error && typeof error === "object" && error.code === "ENOENT") return null;
+    throw error;
+  }
+};
+
+const readOptionalJson = (path) => {
+  const source = readOptionalFile(path, "utf8");
+  return source === null ? null : JSON.parse(source);
+};
+
+const assertWorkPath = (path) => {
+  const workRelativePath = relative(WORK_DIR, path);
+  if (
+    !workRelativePath ||
+    workRelativePath === ".." ||
+    workRelativePath.startsWith(`..${sep}`) ||
+    isAbsolute(workRelativePath)
+  ) {
+    throw new Error(`Refusing to write outside the cinematic work directory: ${path}`);
+  }
+};
+
+const writeWorkFile = (path, data) => {
+  assertWorkPath(path);
+  ensureDirectory(dirname(path));
+  const temporaryPath = join(dirname(path), `.${basename(path)}.${process.pid}.${randomUUID()}.tmp`);
+  let descriptor;
+  try {
+    descriptor = openSync(temporaryPath, "wx", 0o600);
+    writeFileSync(descriptor, data);
+    fsyncSync(descriptor);
+    closeSync(descriptor);
+    descriptor = undefined;
+    renameSync(temporaryPath, path);
+  } catch (error) {
+    if (descriptor !== undefined) closeSync(descriptor);
+    try {
+      unlinkSync(temporaryPath);
+    } catch (cleanupError) {
+      if (!cleanupError || typeof cleanupError !== "object" || cleanupError.code !== "ENOENT") {
+        throw cleanupError;
+      }
+    }
+    throw error;
+  }
+};
+
+const validateMp3 = (value, label) => {
+  if (!Buffer.isBuffer(value)) throw new Error(`${label} is not binary audio.`);
+  if (value.length < 1_024 || value.length > 64 * 1_048_576) {
+    throw new Error(`${label} has an invalid byte length.`);
+  }
+  const hasId3Header = value.subarray(0, 3).toString("ascii") === "ID3";
+  const hasMpegFrameSync = value[0] === 0xff && (value[1] & 0xe0) === 0xe0;
+  if (!hasId3Header && !hasMpegFrameSync) throw new Error(`${label} is not an MP3 stream.`);
+  return value;
+};
+
+const validateAlignment = (value, label) => {
+  if (!value || typeof value !== "object") throw new Error(`${label} has no alignment payload.`);
+  const characters = Array.isArray(value.characters) ? value.characters : null;
+  const starts = Array.isArray(value.character_start_times_seconds)
+    ? value.character_start_times_seconds
+    : null;
+  const ends = Array.isArray(value.character_end_times_seconds)
+    ? value.character_end_times_seconds
+    : null;
+  if (!characters || !starts || !ends || characters.length !== starts.length || starts.length !== ends.length) {
+    throw new Error(`${label} has an invalid alignment shape.`);
+  }
+  if (
+    characters.length > 20_000 ||
+    characters.some((character) => typeof character !== "string" || character.length > 8) ||
+    [...starts, ...ends].some((time) => !Number.isFinite(time) || time < 0)
+  ) {
+    throw new Error(`${label} has invalid alignment values.`);
+  }
+  return {
+    characters: [...characters],
+    character_start_times_seconds: [...starts],
+    character_end_times_seconds: [...ends],
+  };
+};
+
+const finiteNonNegative = (value, label) => {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number < 0) throw new Error(`${label} is invalid.`);
+  return number;
+};
 
 const run = (program, args, options = {}) => {
   const result = spawnSync(program, args, {
@@ -113,6 +212,9 @@ const request = async (path, { method = "GET", body, binary = false } = {}) => {
         body: body ? JSON.stringify(body) : undefined,
         signal: AbortSignal.timeout(180_000),
       });
+      if (new URL(response.url).origin !== API_BASE) {
+        throw new Error(`ElevenLabs ${method} ${path.split("?")[0]} redirected to an untrusted origin.`);
+      }
       if (!response.ok) {
         const safeBody = (await response.text()).slice(0, 2_000);
         const error = new Error(
@@ -123,6 +225,15 @@ const request = async (path, { method = "GET", body, binary = false } = {}) => {
         const retryAfter = Number(response.headers.get("retry-after"));
         await sleep(Number.isFinite(retryAfter) ? retryAfter * 1_000 : attempt * 2_000);
         continue;
+      }
+      const contentType = response.headers.get("content-type")?.split(";", 1)[0].trim().toLowerCase();
+      const allowedContentTypes = binary
+        ? ["audio/mpeg", "audio/mp3", "application/octet-stream"]
+        : ["application/json"];
+      if (!contentType || !allowedContentTypes.includes(contentType)) {
+        throw new Error(
+          `ElevenLabs ${method} ${path.split("?")[0]} returned unexpected content type ${contentType ?? "missing"}.`,
+        );
       }
       return binary ? Buffer.from(await response.arrayBuffer()) : response.json();
     } catch (error) {
@@ -226,7 +337,17 @@ const normalizeStem = (inputPath, outputPath, targetLufs, truePeak, highpass = 3
   ]);
 };
 
-const getSubscription = () => request("/v1/user/subscription");
+const getSubscription = async () => {
+  const subscription = await request("/v1/user/subscription");
+  return {
+    tier:
+      typeof subscription.tier === "string" && /^[a-z0-9 _-]{1,80}$/i.test(subscription.tier)
+        ? subscription.tier
+        : "unknown",
+    character_count: finiteNonNegative(subscription.character_count, "Subscription character count"),
+    character_limit: finiteNonNegative(subscription.character_limit, "Subscription character limit"),
+  };
+};
 
 const listVoices = async () => {
   const response = await request("/v1/voices");
@@ -312,7 +433,10 @@ const generateDialogue = async (voices) => {
       ensureDirectory(dirname(alignmentPath));
 
       let alignment;
-      if (!existsSync(rawPath) || FORCE || !existsSync(alignmentPath)) {
+      const cachedRaw = FORCE ? null : readOptionalFile(rawPath);
+      const cachedAlignment = FORCE ? null : readOptionalFile(alignmentPath, "utf8");
+      if (cachedRaw !== null) validateMp3(cachedRaw, `Cached dialogue ${sceneId}/${number}`);
+      if (cachedRaw === null || cachedAlignment === null) {
         say(`Generating dialogue ${sceneId} ${number}/04 · ${line.speaker}`);
         const apiText = `${role.deliveryPrefix} ${line.direction} ${line.text}`;
         const response = await ttsWithTimestamps({
@@ -321,11 +445,18 @@ const generateDialogue = async (voices) => {
           seed: 18_950 + Object.keys(production.scenes).indexOf(sceneId) * 100 + index,
         });
         if (!response.audio_base64) throw new Error(`TTS returned no audio for ${sceneId}/${number}.`);
-        writeFileSync(rawPath, Buffer.from(response.audio_base64, "base64"));
-        alignment = response.normalized_alignment ?? response.alignment ?? null;
-        writeFileSync(alignmentPath, JSON.stringify(alignment));
+        const audio = validateMp3(
+          Buffer.from(response.audio_base64, "base64"),
+          `Dialogue ${sceneId}/${number}`,
+        );
+        writeWorkFile(rawPath, audio);
+        alignment = validateAlignment(
+          response.normalized_alignment ?? response.alignment ?? null,
+          `Dialogue ${sceneId}/${number}`,
+        );
+        writeWorkFile(alignmentPath, JSON.stringify(alignment));
       } else {
-        alignment = JSON.parse(readFileSync(alignmentPath, "utf8"));
+        alignment = validateAlignment(JSON.parse(cachedAlignment), `Cached dialogue ${sceneId}/${number}`);
       }
 
       const processedPath = join(PROCESSED_DIR, "dialogue", sceneId, `${baseName}.mp3`);
@@ -358,11 +489,12 @@ const generateSoundAssets = async (groupName, assets, { targetLufs, truePeak, hi
     const processedPath = join(PROCESSED_DIR, groupName, `${assetId}.mp3`);
     ensureDirectory(dirname(rawPath));
     ensureDirectory(dirname(processedPath));
-    if (!existsSync(rawPath) || FORCE) {
+    const cachedRaw = FORCE ? null : readOptionalFile(rawPath);
+    if (cachedRaw !== null) validateMp3(cachedRaw, `Cached ${groupName}/${assetId}`);
+    if (cachedRaw === null) {
       say(`Generating ${groupName}: ${assetId}`);
-      const audio = await request(
-        `/v1/sound-generation?output_format=${production.outputFormat}`,
-        {
+      const audio = validateMp3(
+        await request(`/v1/sound-generation?output_format=${production.outputFormat}`, {
           method: "POST",
           body: {
             text: spec.prompt,
@@ -372,9 +504,10 @@ const generateSoundAssets = async (groupName, assets, { targetLufs, truePeak, hi
             model_id: production.soundEffectsModel,
           },
           binary: true,
-        },
+        }),
+        `${groupName}/${assetId}`,
       );
-      writeFileSync(rawPath, audio);
+      writeWorkFile(rawPath, audio);
     }
     if (!existsSync(processedPath) || FORCE) {
       normalizeStem(rawPath, processedPath, targetLufs, truePeak, highpass);
@@ -607,9 +740,9 @@ const main = async () => {
   ensureDirectory(PUBLIC_DIR);
 
   const subscriptionBefore = await getSubscription();
-  const creditLedger = existsSync(CREDIT_LEDGER)
-    ? JSON.parse(readFileSync(CREDIT_LEDGER, "utf8"))
-    : { productionCharacterCountStart: subscriptionBefore.character_count };
+  const creditLedger = readOptionalJson(CREDIT_LEDGER) ?? {
+    productionCharacterCountStart: subscriptionBefore.character_count,
+  };
   say(
     `ElevenLabs plan ${subscriptionBefore.tier}; ${subscriptionBefore.character_limit - subscriptionBefore.character_count} text characters available.`,
   );
@@ -631,8 +764,8 @@ const main = async () => {
   });
   const scenes = buildScenes({ dialogue, ambience, effects });
   assertProductionQA(scenes);
-  if (existsSync(FORCED_ALIGNMENT_REPORT)) {
-    const forcedAlignment = JSON.parse(readFileSync(FORCED_ALIGNMENT_REPORT, "utf8"));
+  const forcedAlignment = readOptionalJson(FORCED_ALIGNMENT_REPORT);
+  if (forcedAlignment) {
     for (const [sceneId, result] of Object.entries(forcedAlignment)) {
       if (scenes[sceneId]) scenes[sceneId].forcedAlignment = result;
     }
@@ -645,7 +778,7 @@ const main = async () => {
     creditLedger.productionCharacterCountEnd ?? subscriptionAfter.character_count;
   const productionCharactersUsed =
     productionCharacterCountEnd - creditLedger.productionCharacterCountStart;
-  writeFileSync(
+  writeWorkFile(
     CREDIT_LEDGER,
     `${JSON.stringify(
       {
@@ -699,7 +832,7 @@ const main = async () => {
     cast,
     scenes,
   };
-  writeFileSync(MANIFEST_CANDIDATE, `${JSON.stringify(manifest, null, 2)}\n`);
+  writeWorkFile(MANIFEST_CANDIDATE, `${JSON.stringify(manifest, null, 2)}\n`);
 
   const report = {
     plan: subscriptionBefore.tier,
@@ -728,7 +861,7 @@ const main = async () => {
       ]),
     ),
   };
-  writeFileSync(QA_REPORT, `${JSON.stringify(report, null, 2)}\n`);
+  writeWorkFile(QA_REPORT, `${JSON.stringify(report, null, 2)}\n`);
 
   say(`QA passed for ${Object.keys(scenes).length} scene masters and 20 aligned dialogue lines.`);
   say(`Credits used this invocation: ${report.charactersUsedThisInvocation} text characters.`);
