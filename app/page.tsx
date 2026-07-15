@@ -3,7 +3,7 @@ import { Casebook } from "./Casebook";
 
 export const metadata: Metadata = {
   description:
-    "Ride through 1895 London in an interactive Sherlock Holmes mystery. Examine a hansom-cab route, tobacco ash, footprints, and casebooks to solve The Cold Ember.",
+    "Ride through 1895 London in an interactive Sherlock Holmes mystery with opt-in cinematic sound, character conversations, and source-aware captions.",
   alternates: {
     canonical: "/",
   },

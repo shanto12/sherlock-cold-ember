@@ -8,6 +8,10 @@ This map describes the production-oriented Playwright coverage. Browser artifact
 | Mobile layouts | Chromium at 390 x 844 and 320 x 658 |
 | Primary journey | Begin, all five chapter links, full previous/next traversal and boundaries, telegram open/fold, inspection light on/off, every clue, all three conclusions, replay |
 | Global controls | Motion pause/resume, case-notes drawer, clear notes, close controls, both commission calls to action |
+| Audio autoplay policy | No `AudioContext` before an explicit gesture, no autoplay media, no sound after reload, one context per mounted experience |
+| Cinematic audio lifecycle | Five-scene mix changes, hidden-tab suspension and timer release, resume, mute, stop, and complete source/node cleanup |
+| Dialogue and captions | Local speech requests, character/caption changes, canonical-source links, play/stop/dismiss, speech-failure timing, and persistent caption availability |
+| Sound mixer | Master, atmosphere, and dialogue ranges; persisted values; start/stop; close; responsive layout and touch targets |
 | Inquiry workflow | Dialog open/close, Escape, focus containment/restoration, validation, field completion, encoded form submission |
 | Reduced motion | OS preference, persisted pause state, animation lifecycle |
 | Basic accessibility | Landmark/headings, control names, form labels, focus visibility, keyboard activation, image alternatives, touch targets |
@@ -23,9 +27,9 @@ Run current production verification with `PLAYWRIGHT_BASE_URL=https://sherlock-c
 
 ## Latest local baseline
 
-July 15, 2026 at 10:43 AM CDT:
+July 15, 2026 at 1:05 PM CDT:
 
-- Complete three-viewport suite: 18 passed, 18 intentionally skipped production-only or duplicate-viewport checks, 0 failed in 2.0 minutes
-- Focused warmed-server desktop rerun for the expanded journey, dialog, metadata, assets, and designed 404 coverage: 5 passed
-- TypeScript and focused ESLint: passed with zero findings
+- Cinematic-audio coverage inside the complete run: 15 passed, 24 intentionally skipped duplicate desktop-only checks, 0 failed across 1440px, 390px, and 320px
+- Complete three-viewport regression suite: 33 passed, 42 intentional local skips (production-only or duplicate desktop checks), 0 failed
+- TypeScript, ESLint, Vinext build, Next.js build, rendered tests, live source-text verification, and production npm audit: passed; 0 production vulnerabilities
 - Production security and live Netlify form checks: pending the public production deployment

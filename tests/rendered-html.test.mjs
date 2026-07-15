@@ -53,6 +53,11 @@ test("server-renders the complete moving casebook", async () => {
   assert.match(html, /Five books/);
   assert.match(html, /Dawn does not/);
   assert.match(html, /Commission an immersive mystery/);
+  assert.match(html, /Enter with sound/);
+  assert.match(html, /Cinematic audio controls loading/);
+  assert.match(html, /Cinematic sound mixer/);
+  assert.match(html, /Sound is optional, locally generated, and always captioned/);
+  assert.doesNotMatch(html, /<(?:audio|video)[^>]+autoplay/i);
   assert.match(html, /consultation/);
   assert.match(html, /\/scenes\/hansom\.avif/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape|react-loading-skeleton/i);

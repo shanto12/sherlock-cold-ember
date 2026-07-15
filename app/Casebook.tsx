@@ -8,9 +8,20 @@ import {
   useRef,
   useState,
 } from "react";
+import {
+  CinematicAudioEngine,
+  type CinematicAudioStatus,
+  type CinematicSoundCue,
+} from "../lib/cinematic-audio";
+import { CinematicDialoguePlayer } from "../lib/cinematic-dialogue";
+import {
+  DIALOGUES,
+  type DialogueLine,
+  type DialogueSceneId,
+} from "../lib/dialogue-script";
 
 type Scene = {
-  id: string;
+  id: DialogueSceneId;
   label: string;
   title: string;
   time: string;
@@ -23,6 +34,20 @@ type Evidence = {
   label: string;
   title: string;
   observation: string;
+};
+
+type DialogueDebugSnapshot = {
+  initialized: boolean;
+  playing: boolean;
+  scene: DialogueSceneId;
+  lineIndex: number;
+  lineCount: number;
+  speaker: string | null;
+  text: string | null;
+  speakRequestCount: number;
+  speechActive: boolean;
+  lastResult: "idle" | "complete" | "stopped";
+  voiceAvailable: boolean;
 };
 
 const SCENES: Scene[] = [
@@ -160,6 +185,17 @@ const BOOKS = [
     text: "The second fare crossed the roadworks after midnight. The cab’s roof trapdoor gave the driver a clear view of his passenger’s parcel.",
   },
 ];
+
+const DIALOGUE_CUES: Record<
+  NonNullable<DialogueLine["cue"]>,
+  CinematicSoundCue
+> = {
+  telegram: "telegram",
+  hoofbeat: "footsteps",
+  glass: "clue",
+  paper: "paper",
+  reveal: "reveal",
+};
 
 function ScenePicture({ scene, mobile = false }: { scene: Scene; mobile?: boolean }) {
   return (
@@ -303,6 +339,27 @@ function AmbienceCanvas({ scene, paused }: { scene: number; paused: boolean }) {
   return <canvas ref={canvasRef} className="ambience" aria-hidden="true" />;
 }
 
+function publishDialogueDebug(update: Partial<DialogueDebugSnapshot>) {
+  const debugWindow = window as Window & {
+    __coldEmberDialogueDebug?: DialogueDebugSnapshot;
+  };
+  debugWindow.__coldEmberDialogueDebug = {
+    initialized: true,
+    playing: false,
+    scene: "summons",
+    lineIndex: -1,
+    lineCount: 0,
+    speaker: null,
+    text: null,
+    speakRequestCount: 0,
+    speechActive: false,
+    lastResult: "idle",
+    voiceAvailable: false,
+    ...debugWindow.__coldEmberDialogueDebug,
+    ...update,
+  };
+}
+
 export function Casebook() {
   const [activeScene, setActiveScene] = useState(0);
   const [motionPaused, setMotionPaused] = useState(false);
@@ -316,10 +373,84 @@ export function Casebook() {
   const [formStatus, setFormStatus] = useState<
     "idle" | "sending" | "success" | "error"
   >("idle");
+  const [soundEnabled, setSoundEnabled] = useState(false);
+  const [audioSupported, setAudioSupported] = useState(false);
+  const [audioCapabilityKnown, setAudioCapabilityKnown] = useState(false);
+  const [audioDegraded, setAudioDegraded] = useState(false);
+  const [audioStatus, setAudioStatus] = useState<CinematicAudioStatus>("idle");
+  const [masterVolume, setMasterVolume] = useState(0.72);
+  const [ambienceVolume, setAmbienceVolume] = useState(0.48);
+  const [dialogueVolume, setDialogueVolume] = useState(0.86);
+  const [audioSettingsReady, setAudioSettingsReady] = useState(false);
+  const [dialoguePlaying, setDialoguePlaying] = useState(false);
+  const [dialogueSpeechActive, setDialogueSpeechActive] = useState(false);
+  const [caption, setCaption] = useState<{
+    line: DialogueLine;
+    index: number;
+    total: number;
+  } | null>(null);
 
   const indexDialog = useRef<HTMLDialogElement>(null);
   const notesDialog = useRef<HTMLDialogElement>(null);
   const inquiryDialog = useRef<HTMLDialogElement>(null);
+  const soundDialog = useRef<HTMLDialogElement>(null);
+  const audioEngine = useRef<CinematicAudioEngine | null>(null);
+  const dialoguePlayer = useRef<CinematicDialoguePlayer | null>(null);
+  const dialogueUiRun = useRef(0);
+  const activeSceneRef = useRef(0);
+
+  useEffect(() => {
+    let disposed = false;
+    const engine = new CinematicAudioEngine({
+      scene: "summons",
+      onDebugChange: (snapshot) => {
+        window.queueMicrotask(() => {
+          if (!disposed) setAudioStatus(snapshot.status);
+        });
+      },
+    });
+    const player = new CinematicDialoguePlayer();
+    const browserWindow = window as Window & {
+      webkitAudioContext?: typeof AudioContext;
+    };
+    audioEngine.current = engine;
+    dialoguePlayer.current = player;
+    const capabilityFrame = window.requestAnimationFrame(() => {
+      setAudioSupported(Boolean(window.AudioContext || browserWindow.webkitAudioContext));
+      setAudioCapabilityKnown(true);
+    });
+    publishDialogueDebug({ voiceAvailable: player.isVoiceAvailable() });
+
+    return () => {
+      disposed = true;
+      window.cancelAnimationFrame(capabilityFrame);
+      dialogueUiRun.current += 1;
+      player.stop();
+      audioEngine.current = null;
+      dialoguePlayer.current = null;
+      publishDialogueDebug({ playing: false, lastResult: "stopped" });
+      void engine.destroy();
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleDialogueVisibility = () => {
+      if (!document.hidden) return;
+      dialogueUiRun.current += 1;
+      dialoguePlayer.current?.stop();
+      setDialoguePlaying(false);
+      setDialogueSpeechActive(false);
+      setCaption(null);
+      publishDialogueDebug({
+        playing: false,
+        speechActive: false,
+        scene: SCENES[activeSceneRef.current].id,
+        lastResult: "stopped",
+      });
+    };
+    document.addEventListener("visibilitychange", handleDialogueVisibility);
+    return () => document.removeEventListener("visibilitychange", handleDialogueVisibility);
+  }, []);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -335,10 +466,46 @@ export function Casebook() {
       } catch {
         window.localStorage.removeItem("cold-ember-notes");
       }
+
+      try {
+        const settings = JSON.parse(
+          window.localStorage.getItem("cold-ember-audio-settings") ?? "{}",
+        ) as Record<string, unknown>;
+        const storedLevel = (value: unknown) =>
+          typeof value === "number" && Number.isFinite(value)
+            ? Math.max(0, Math.min(1, value))
+            : null;
+        const storedMaster = storedLevel(settings.master);
+        const storedAmbience = storedLevel(settings.ambience);
+        const storedDialogue = storedLevel(settings.dialogue);
+        if (storedMaster !== null) setMasterVolume(storedMaster);
+        if (storedAmbience !== null) setAmbienceVolume(storedAmbience);
+        if (storedDialogue !== null) setDialogueVolume(storedDialogue);
+      } catch {
+        window.localStorage.removeItem("cold-ember-audio-settings");
+      } finally {
+        setAudioSettingsReady(true);
+      }
     });
 
     return () => window.cancelAnimationFrame(frame);
   }, []);
+
+  useEffect(() => {
+    const engine = audioEngine.current;
+    engine?.setMasterVolume(masterVolume);
+    engine?.setAmbienceVolume(ambienceVolume);
+    engine?.setDialogueVolume(dialogueVolume);
+    if (!audioSettingsReady) return;
+    window.localStorage.setItem(
+      "cold-ember-audio-settings",
+      JSON.stringify({
+        master: masterVolume,
+        ambience: ambienceVolume,
+        dialogue: dialogueVolume,
+      }),
+    );
+  }, [ambienceVolume, audioSettingsReady, dialogueVolume, masterVolume]);
 
   useEffect(() => {
     const sections = Array.from(
@@ -350,7 +517,29 @@ export function Casebook() {
           .filter((entry) => entry.isIntersecting)
           .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
         if (visible) {
-          setActiveScene(Number((visible.target as HTMLElement).dataset.sceneIndex));
+          const nextScene = Number((visible.target as HTMLElement).dataset.sceneIndex);
+          if (nextScene === activeSceneRef.current) return;
+          activeSceneRef.current = nextScene;
+          const engine = audioEngine.current;
+          engine?.setScene(SCENES[nextScene].id);
+          if (engine?.getDebugSnapshot().started) {
+            engine.playCue(nextScene === 4 ? "deduction" : "ui", {
+              bus: "ambience",
+              intensity: 0.62,
+            });
+          }
+          dialogueUiRun.current += 1;
+          dialoguePlayer.current?.stop();
+          setDialoguePlaying(false);
+          setDialogueSpeechActive(false);
+          setCaption(null);
+          publishDialogueDebug({
+            playing: false,
+            speechActive: false,
+            scene: SCENES[nextScene].id,
+            lastResult: "stopped",
+          });
+          setActiveScene(nextScene);
         }
       },
       { rootMargin: "-28% 0px -45%", threshold: [0.1, 0.35, 0.6] },
@@ -361,6 +550,10 @@ export function Casebook() {
 
   const recordEvidence = useCallback((id: string) => {
     setActiveEvidence(id);
+    audioEngine.current?.playCue(
+      id === "telegram" ? "telegram" : id === "conclusion" ? "deduction" : "clue",
+      { bus: "dialogue", intensity: 0.78 },
+    );
     setNotes((current) => {
       if (current.includes(id)) return current;
       const next = [...current, id];
@@ -374,6 +567,17 @@ export function Casebook() {
     const scene = SCENES[safeIndex];
     const target = document.getElementById(scene.id);
     if (!target) return;
+    dialogueUiRun.current += 1;
+    dialoguePlayer.current?.stop();
+    setDialoguePlaying(false);
+    setDialogueSpeechActive(false);
+    setCaption(null);
+    publishDialogueDebug({
+      playing: false,
+      speechActive: false,
+      scene: scene.id,
+      lastResult: "stopped",
+    });
     const reduceMotion =
       motionPaused || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     target.scrollIntoView({
@@ -386,6 +590,19 @@ export function Casebook() {
   }, [motionPaused]);
 
   const openDialog = (ref: { current: HTMLDialogElement | null }) => {
+    if (dialoguePlaying) {
+      dialogueUiRun.current += 1;
+      dialoguePlayer.current?.stop();
+      setDialoguePlaying(false);
+      setDialogueSpeechActive(false);
+      setCaption(null);
+      publishDialogueDebug({
+        playing: false,
+        speechActive: false,
+        scene: SCENES[activeSceneRef.current].id,
+        lastResult: "stopped",
+      });
+    }
     if (ref.current && !ref.current.open) ref.current.showModal();
   };
 
@@ -394,6 +611,7 @@ export function Casebook() {
   };
 
   const toggleMotion = () => {
+    audioEngine.current?.playCue("ui", { bus: "dialogue", intensity: 0.55 });
     setMotionPaused((current) => {
       const next = !current;
       window.localStorage.setItem(
@@ -402,6 +620,147 @@ export function Casebook() {
       );
       return next;
     });
+  };
+
+  const stopDialogue = (clearCaption = true) => {
+    dialogueUiRun.current += 1;
+    dialoguePlayer.current?.stop();
+    setDialoguePlaying(false);
+    setDialogueSpeechActive(false);
+    if (clearCaption) setCaption(null);
+    publishDialogueDebug({
+      playing: false,
+      speechActive: false,
+      scene: SCENES[activeScene].id,
+      lastResult: "stopped",
+    });
+  };
+
+  const startSound = async () => {
+    const engine = audioEngine.current;
+    if (!engine || !audioSupported) return false;
+    const started = await engine.start();
+    const debug = engine.getDebugSnapshot();
+    setAudioSupported(debug.supported);
+    if (!started) {
+      setAudioDegraded(true);
+      setSoundEnabled(false);
+      return false;
+    }
+    setAudioDegraded(false);
+    setSoundEnabled(true);
+    engine.playCue("case-open", { bus: "dialogue", intensity: 0.82 });
+    return true;
+  };
+
+  const stopSound = async () => {
+    stopDialogue();
+    await audioEngine.current?.stop();
+    setSoundEnabled(false);
+  };
+
+  const toggleSound = async () => {
+    if (soundEnabled && audioStatus === "running") await stopSound();
+    else await startSound();
+  };
+
+  const playSceneDialogue = async (sceneIndex = activeSceneRef.current) => {
+    const engine = audioEngine.current;
+    const player = dialoguePlayer.current;
+    if (!engine || !player) return;
+    const startScrollY = window.scrollY;
+
+    dialogueUiRun.current += 1;
+    const run = dialogueUiRun.current;
+    player.stop();
+    setDialoguePlaying(false);
+    setDialogueSpeechActive(false);
+    setCaption(null);
+
+    let soundscapeReady = soundEnabled;
+    if (audioSupported) {
+      if (!soundEnabled) {
+        soundscapeReady = await startSound();
+      } else if (engine.getDebugSnapshot().contextState !== "running") {
+        soundscapeReady = await engine.resume();
+        if (!soundscapeReady) {
+          setAudioDegraded(true);
+          setSoundEnabled(false);
+        }
+      }
+    } else {
+      soundscapeReady = false;
+    }
+
+    if (
+      run !== dialogueUiRun.current ||
+      activeSceneRef.current !== sceneIndex ||
+      Math.abs(window.scrollY - startScrollY) > 4 ||
+      document.hidden
+    ) {
+      return;
+    }
+
+    const scene = SCENES[sceneIndex].id;
+    const dialogue = DIALOGUES[scene];
+    engine.setScene(scene);
+    setDialoguePlaying(true);
+    publishDialogueDebug({
+      playing: true,
+      speechActive: false,
+      scene,
+      lineIndex: -1,
+      lineCount: dialogue.lines.length,
+      speaker: null,
+      text: null,
+      lastResult: "idle",
+      voiceAvailable: player.isVoiceAvailable(),
+    });
+
+    const result = await player.play(dialogue.lines, {
+      getVolume: () =>
+        soundscapeReady
+          ? engine.getEffectiveDialogueVolume()
+          : Math.max(0, Math.min(1, masterVolume * dialogueVolume)),
+      onLineStart: (line, index) => {
+        if (run !== dialogueUiRun.current) return;
+        setCaption({ line, index, total: dialogue.lines.length });
+        if (line.cue && soundscapeReady) {
+          engine.playCue(DIALOGUE_CUES[line.cue], {
+            bus: "dialogue",
+            intensity: 0.72,
+          });
+        }
+        publishDialogueDebug({
+          playing: true,
+          scene,
+          lineIndex: index,
+          lineCount: dialogue.lines.length,
+          speaker: line.speaker,
+          text: line.text,
+        });
+      },
+      onSpeechStart: () => {
+        const debugWindow = window as Window & {
+          __coldEmberDialogueDebug?: DialogueDebugSnapshot;
+        };
+        publishDialogueDebug({
+          speakRequestCount:
+            (debugWindow.__coldEmberDialogueDebug?.speakRequestCount ?? 0) + 1,
+        });
+      },
+      onSpeechActivityChange: (active) => {
+        if (run !== dialogueUiRun.current) return;
+        setDialogueSpeechActive(active);
+        publishDialogueDebug({ speechActive: active });
+      },
+    });
+
+    if (run !== dialogueUiRun.current) return;
+    setDialoguePlaying(false);
+    setDialogueSpeechActive(false);
+    setCaption(null);
+    publishDialogueDebug({ playing: false, speechActive: false, lastResult: result });
   };
 
   const selectBook = (id: string) => {
@@ -469,6 +828,7 @@ export function Casebook() {
 
   const currentEvidence = EVIDENCE[activeEvidence];
   const selectedBook = BOOKS.find((book) => book.id === activeBook) ?? BOOKS[0];
+  const soundscapeLive = soundEnabled && audioStatus === "running";
 
   return (
     <div
@@ -512,6 +872,34 @@ export function Casebook() {
           >
             <span className="motion-signal" aria-hidden="true" />
             {motionPaused ? "Resume motion" : "Pause motion"}
+          </button>
+          <button
+            className={`quiet-control sound-control${soundscapeLive ? " is-live" : ""}`}
+            type="button"
+            aria-pressed={audioCapabilityKnown && audioSupported ? soundscapeLive : undefined}
+            aria-haspopup={audioCapabilityKnown && !audioSupported ? "dialog" : undefined}
+            aria-controls={audioCapabilityKnown && !audioSupported ? "sound-mixer-dialog" : undefined}
+            aria-label={
+              !audioCapabilityKnown
+                ? "Cinematic audio controls loading"
+                : audioSupported
+                  ? soundscapeLive
+                    ? "Turn cinematic sound off"
+                    : soundEnabled
+                      ? "Resume cinematic sound"
+                      : "Turn cinematic sound on"
+                  : "Open captioned dialogue controls"
+            }
+            aria-describedby={audioCapabilityKnown && !audioSupported ? "audio-support-note" : undefined}
+            onClick={() => audioSupported ? void toggleSound() : openDialog(soundDialog)}
+            disabled={!audioCapabilityKnown}
+          >
+            <span className="sound-signal" aria-hidden="true">
+              <i /><i /><i />
+            </span>
+            {audioSupported
+              ? soundscapeLive ? "Sound on" : soundEnabled ? "Sound paused" : "Sound off"
+              : "Dialogue"}
           </button>
           <button className="quiet-control notes-control" type="button" onClick={() => openDialog(notesDialog)}>
             Case notes <span className="count">{notes.length}</span>
@@ -562,8 +950,24 @@ export function Casebook() {
               <button className="text-action" type="button" onClick={() => scrollToScene(2)}>
                 Inspect the evidence
               </button>
+              <button
+                className="text-action sound-entry"
+                type="button"
+                onClick={() => void playSceneDialogue(0)}
+              >
+                {!audioCapabilityKnown || audioSupported
+                  ? soundEnabled ? "Hear the summons" : "Enter with sound"
+                  : "Play captioned summons"}
+              </button>
             </div>
-            <p className="motion-hint"><span aria-hidden="true">◇</span> Move slowly. London notices haste.</p>
+            <p id="audio-support-note" className="motion-hint" role={audioCapabilityKnown && (!audioSupported || audioDegraded) ? "status" : undefined}>
+              <span aria-hidden="true">◇</span>{" "}
+              {audioCapabilityKnown && !audioSupported
+                ? "Ambient Web Audio is unavailable here; timed captions and any local system voice still work."
+                : audioDegraded
+                  ? "The ambient soundscape could not start; captioned dialogue remains available and sound can be retried."
+                : "Sound is optional, locally generated, and always captioned."}
+            </p>
           </div>
           <div className="telegram-panel">
             <div className="panel-rule"><span>Received by wire</span><span>10:17 PM</span></div>
@@ -830,6 +1234,14 @@ export function Casebook() {
                 pipe is historical characterization, never a product or reward.
               </p>
             </article>
+            <article>
+              <span>04 / Sound</span>
+              <h3>London, built from signals</h3>
+              <p>
+                Rain, wheels, fire, paper, clocks, and clue accents are synthesized
+                live. No stock recording, actor performance, or adaptation audio is used.
+              </p>
+            </article>
           </div>
           <div className="faq-list">
             <details>
@@ -838,11 +1250,24 @@ export function Casebook() {
             </details>
             <details>
               <summary>Are the images and story original?</summary>
-              <p>Yes. The writing, case, art direction, illustrations, animation system, and interface were created for this project.</p>
+              <p>The case, original dialogue, art direction, illustrations, animation system, and interface were created for this project. Seven brief canonical lines are visibly credited to their public-domain stories.</p>
             </details>
             <details>
               <summary>Can the motion be stopped?</summary>
               <p>Yes. Use Pause motion in the header. The preference persists, and reduced-motion system settings are respected automatically.</p>
+            </details>
+            <details>
+              <summary>How does the cinematic sound work?</summary>
+              <p>Sound begins only after you ask for it. Your browser generates the ambience locally and uses a local system voice when your device provides one; use the mixer for separate master, atmosphere, and dialogue levels, or turn it off instantly.</p>
+            </details>
+            <details>
+              <summary>Where do the famous dialogue lines come from?</summary>
+              <p>
+                Each canonical echo is identified in its caption. Sources include
+                <a href="https://en.wikisource.org/wiki/The_Adventures_of_Sherlock_Holmes_(1892,_US)/A_Scandal_in_Bohemia" target="_blank" rel="noreferrer"> A Scandal in Bohemia</a>,
+                <a href="https://en.wikisource.org/wiki/The_Strand_Magazine/Volume_4/Issue_24/The_Adventure_of_Silver_Blaze" target="_blank" rel="noreferrer"> Silver Blaze</a>, and
+                <a href="https://en.wikisource.org/wiki/A_Study_in_Scarlet/Part_1/Chapter_3" target="_blank" rel="noreferrer"> A Study in Scarlet</a>. The 1897 “game is afoot” line is intentionally omitted to preserve this case’s 1895 chronology.
+              </p>
             </details>
           </div>
         </section>
@@ -859,6 +1284,57 @@ export function Casebook() {
           </button>
         </section>
       </main>
+
+      {(soundEnabled || dialoguePlaying) && (
+        <aside className="sound-console" aria-label="Cinematic sound controls">
+          <div className="sound-console-status">
+            <span className="sound-wave" aria-hidden="true"><i /><i /><i /><i /></span>
+            <span>
+              <small>Scene 0{activeScene + 1} · {soundscapeLive ? "live soundscape" : soundEnabled ? "soundscape paused" : "captioned conversation"}</small>
+              <strong>{DIALOGUES[SCENES[activeScene].id].title}</strong>
+            </span>
+          </div>
+          <div className="sound-console-actions">
+            <button
+              type="button"
+              onClick={() =>
+                dialoguePlaying ? stopDialogue() : void playSceneDialogue()
+              }
+            >
+              {dialoguePlaying ? "Stop conversation" : "Hear conversation"}
+            </button>
+            <button type="button" onClick={() => openDialog(soundDialog)}>Mixer</button>
+            <button type="button" aria-label={soundEnabled ? "Mute cinematic sound" : "Stop conversation"} onClick={() => void stopSound()}>×</button>
+          </div>
+        </aside>
+      )}
+
+      {caption && (
+        <section className="cinematic-caption" aria-label="Dialogue caption">
+          <div className="caption-index" aria-hidden="true">
+            <span>{String(caption.index + 1).padStart(2, "0")}</span>
+            <i />
+            <span>{String(caption.total).padStart(2, "0")}</span>
+          </div>
+          <div className="caption-copy">
+            <div className="caption-transcript" aria-live={dialogueSpeechActive ? "off" : "polite"} aria-atomic="true">
+              <span>{caption.line.speaker}</span>
+              <p>{caption.line.text}</p>
+            </div>
+            {caption.line.source && (
+              <a
+                href={caption.line.source.url}
+                target="_blank"
+                rel="noreferrer"
+                onFocus={() => dialoguePlaying && stopDialogue(false)}
+              >
+                Canonical echo · {caption.line.source.story} ↗
+              </a>
+            )}
+          </div>
+          <button type="button" aria-label="Dismiss dialogue caption" onClick={() => setCaption(null)}>×</button>
+        </section>
+      )}
 
       <nav className="scene-rail" aria-label="Scene navigation">
         <button type="button" onClick={() => scrollToScene(activeScene - 1)} disabled={activeScene === 0}>
@@ -877,7 +1353,8 @@ export function Casebook() {
         </div>
         <p>
           An independent, unofficial adaptation inspired by public-domain literary
-          works. Not affiliated with any film, television, museum, or estate.
+          works. Browser-synthesized voices never imitate an actor. Not affiliated
+          with any film, television, museum, platform, or estate.
         </p>
         <p>
           Historical context: tobacco is harmful in every form. This experience does
@@ -939,6 +1416,80 @@ export function Casebook() {
           >
             Clear case notes
           </button>
+        </div>
+      </dialog>
+
+      <dialog id="sound-mixer-dialog" ref={soundDialog} className="case-dialog sound-dialog" aria-labelledby="sound-dialog-title">
+        <div className="dialog-header">
+          <div><span>Locally generated audio</span><h2 id="sound-dialog-title">Cinematic sound mixer</h2></div>
+          <button type="button" aria-label="Close sound mixer" onClick={() => closeDialog(soundDialog)}>×</button>
+        </div>
+        <div className="sound-mixer">
+          <div className="sound-scene-card">
+            <div className="sound-orbit" aria-hidden="true"><span /><i /><b /></div>
+            <div>
+              <span>Scene 0{activeScene + 1} · {soundscapeLive ? "soundscape live" : soundEnabled ? "soundscape paused" : "soundscape ready"}</span>
+              <h3>{DIALOGUES[SCENES[activeScene].id].title}</h3>
+              <p>{DIALOGUES[SCENES[activeScene].id].atmosphere}</p>
+            </div>
+          </div>
+
+          {(!audioSupported || audioDegraded) && (
+            <p className="sound-unavailable" role="status">
+              {!audioSupported
+                ? "This browser cannot generate the ambient soundscape. Captioned scene conversations remain available, with a local system voice when your device provides one."
+                : "The ambient soundscape could not start. Captioned scene conversations remain available, and you can retry the soundscape."}
+            </p>
+          )}
+
+          <div className="sound-mixer-actions">
+            <button className="primary-action" type="button" onClick={() => soundscapeLive ? void stopSound() : void startSound()} disabled={!audioSupported}>
+              {soundscapeLive ? "Stop all sound" : soundEnabled ? "Resume soundscape" : "Start soundscape"}
+            </button>
+            <button
+              className="text-action"
+              type="button"
+              onClick={() => {
+                if (dialoguePlaying) stopDialogue();
+                else {
+                  closeDialog(soundDialog);
+                  void playSceneDialogue();
+                }
+              }}
+            >
+              {dialoguePlaying ? "Stop conversation" : "Play scene conversation"}
+            </button>
+          </div>
+
+          <div className="mixer-levels" aria-label="Sound levels">
+            <label htmlFor="master-volume">
+              <span><b>Master</b><small>Ambience now · voice on next line</small></span>
+              <input id="master-volume" type="range" min="0" max="100" value={Math.round(masterVolume * 100)} onChange={(event) => {
+                const value = Number(event.target.value) / 100;
+                setMasterVolume(value);
+              }} />
+              <output htmlFor="master-volume">{Math.round(masterVolume * 100)}%</output>
+            </label>
+            <label htmlFor="ambience-volume">
+              <span><b>Atmosphere</b><small>Rain, rooms, wheels, fire</small></span>
+              <input id="ambience-volume" type="range" min="0" max="100" value={Math.round(ambienceVolume * 100)} onChange={(event) => setAmbienceVolume(Number(event.target.value) / 100)} disabled={!audioSupported} />
+              <output htmlFor="ambience-volume">{Math.round(ambienceVolume * 100)}%</output>
+            </label>
+            <label htmlFor="dialogue-volume">
+              <span><b>Dialogue</b><small>Local voice · applies on the next line</small></span>
+              <input id="dialogue-volume" type="range" min="0" max="100" value={Math.round(dialogueVolume * 100)} onChange={(event) => {
+                const value = Number(event.target.value) / 100;
+                setDialogueVolume(value);
+              }} />
+              <output htmlFor="dialogue-volume">{Math.round(dialogueVolume * 100)}%</output>
+            </label>
+          </div>
+
+          <div className="sound-ethics-note">
+            <span>Performance note</span>
+            <p>No recording or actor likeness is used. Your device chooses a local English system voice; if none is available, the captions continue without speech. All ambience and effects are generated in real time.</p>
+            <a href="https://github.com/shanto12/sherlock-cold-ember/blob/main/docs/dialogue-sources.md" target="_blank" rel="noreferrer">Read dialogue and sound provenance ↗</a>
+          </div>
         </div>
       </dialog>
 

@@ -161,7 +161,7 @@ export async function expectPrimaryTouchTargets(page: Page) {
   const undersized = await page.evaluate(() =>
     [
       ...document.querySelectorAll<HTMLElement>(
-        "header button, main button, dialog button, input:not([type='checkbox']):not([type='radio']):not([name='bot-field']), select",
+        "header button, main button, dialog button, .sound-console button, .cinematic-caption button, input:not([type='checkbox']):not([type='radio']):not([name='bot-field']), select",
       ),
     ]
       .filter((element) => {

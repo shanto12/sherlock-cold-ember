@@ -179,7 +179,7 @@ test("completes the moving casebook and records every clue", async ({ page }, te
   });
   await fieldNotes.scrollIntoViewIfNeeded();
   const disclosures = fieldNotes.locator("details");
-  await expect(disclosures).toHaveCount(3);
+  await expect(disclosures).toHaveCount(5);
   for (const disclosure of await disclosures.all()) {
     await disclosure.locator("summary").click();
     await expect(disclosure).toHaveAttribute("open", "");
