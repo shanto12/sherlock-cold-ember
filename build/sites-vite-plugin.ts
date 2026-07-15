@@ -1,4 +1,4 @@
-import { access, cp, mkdir, rm } from "node:fs/promises";
+import { access, cp, mkdir, rename, rm } from "node:fs/promises";
 import { resolve } from "node:path";
 import type { Plugin } from "vite";
 
@@ -28,6 +28,8 @@ export function sites(): Plugin {
       const outputDirectory = resolve(root, "dist", ".openai");
       const hostingConfig = resolve(root, ".openai", "hosting.json");
       const drizzleSource = resolve(root, "drizzle");
+      const publicAudioDirectory = resolve(root, "dist", "client", "audio");
+      const workerAudioDirectory = resolve(root, "dist", "client", "_audio");
 
       await rm(outputDirectory, { recursive: true, force: true });
       await mkdir(outputDirectory, { recursive: true });
@@ -39,6 +41,15 @@ export function sites(): Plugin {
         await cp(drizzleSource, resolve(outputDirectory, "drizzle"), {
           recursive: true,
         });
+      }
+
+      // Sites serves matching static files before the Worker and currently
+      // ignores Wrangler's run_worker_first setting. Keep the canonical public
+      // source path for Netlify, but move only the compiled Sites copy so
+      // /audio/* falls through to worker/index.ts for immutable caching.
+      if (await exists(publicAudioDirectory)) {
+        await rm(workerAudioDirectory, { recursive: true, force: true });
+        await rename(publicAudioDirectory, workerAudioDirectory);
       }
     },
   };

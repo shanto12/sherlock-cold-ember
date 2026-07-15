@@ -21,6 +21,20 @@ interface ExecutionContext {
   passThroughOnException(): void;
 }
 
+function withImmutableAudioCache(response: Response): Response {
+  if (!response.ok) return withSecurityHeaders(response);
+
+  const headers = new Headers(response.headers);
+  headers.set("Cache-Control", "public, max-age=31536000, immutable");
+  return withSecurityHeaders(
+    new Response(response.body, {
+      headers,
+      status: response.status,
+      statusText: response.statusText,
+    }),
+  );
+}
+
 // Image security config. SVG sources with .svg extension auto-skip the
 // optimization endpoint on the client side (served directly, no proxy).
 // To route SVGs through the optimizer (with security headers), set
@@ -44,16 +58,20 @@ const worker = {
       return withSecurityHeaders(imageResponse);
     }
 
-    const response = withSecurityHeaders(await handler.fetch(request, env, ctx));
-    if (!url.pathname.startsWith("/audio/")) return response;
+    if (url.pathname.startsWith("/audio/")) {
+      const assetUrl = new URL(request.url);
+      assetUrl.pathname = `/_audio/${url.pathname.slice("/audio/".length)}`;
+      const assetResponse = await env.ASSETS.fetch(
+        new Request(assetUrl, {
+          headers: request.headers,
+          method: request.method,
+        }),
+      );
 
-    const headers = new Headers(response.headers);
-    headers.set("Cache-Control", "public, max-age=31536000, immutable");
-    return new Response(response.body, {
-      headers,
-      status: response.status,
-      statusText: response.statusText,
-    });
+      return withImmutableAudioCache(assetResponse);
+    }
+
+    return withSecurityHeaders(await handler.fetch(request, env, ctx));
   },
 };
 
