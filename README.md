@@ -87,6 +87,7 @@ domain in the United States.
 Focused contributions are welcome through the protected pull-request workflow;
 see [`CONTRIBUTING.md`](./CONTRIBUTING.md) for the local and release gates.
 Report suspected vulnerabilities only through the private process in
-[`SECURITY.md`](./SECURITY.md). Weekly Dependabot maintenance covers npm and
-GitHub Actions, while major dependency upgrades remain deliberate full-gate
-changes.
+[`SECURITY.md`](./SECURITY.md). Weekly Dependabot maintenance uses peer-aware
+npm groups with custom new-release cooldowns; GitHub Actions use GitHub's
+default cooldown. All major dependency or Action upgrades remain deliberate
+full-gate changes.

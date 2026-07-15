@@ -11,7 +11,34 @@ updates:
     open-pull-requests-limit: 5
     commit-message:
       prefix: "deps"
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
+      semver-minor-days: 7
+      semver-patch-days: 3
+      include:
+        - "*"
     groups:
+      react-stack:
+        patterns:
+          - "react"
+          - "react-dom"
+          - "react-server-dom-webpack"
+          - "@types/react"
+          - "@types/react-dom"
+        update-types:
+          - "minor"
+          - "patch"
+      vite-rsc-stack:
+        dependency-type: "development"
+        patterns:
+          - "vinext"
+          - "vite"
+          - "@vitejs/*"
+          - "@cloudflare/vite-plugin"
+        update-types:
+          - "minor"
+          - "patch"
       runtime-minor-and-patch:
         dependency-type: "production"
         update-types:
@@ -41,3 +68,10 @@ updates:
       github-actions:
         patterns:
           - "*"
+        update-types:
+          - "minor"
+          - "patch"
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-major"
