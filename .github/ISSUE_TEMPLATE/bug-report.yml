@@ -1,0 +1,66 @@
+name: Bug report
+description: Report a reproducible application, layout, audio, or interaction defect.
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for the report. Do not include credentials, private form data, or exploit details here; use the private security-reporting link instead.
+  - type: input
+    id: url
+    attributes:
+      label: Affected URL
+      placeholder: https://sherlock-cold-ember.netlify.app/#observation-03
+    validations:
+      required: true
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: Describe the observed result and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      placeholder: |
+        1. Open …
+        2. Select …
+        3. Observe …
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Browser and device
+      placeholder: Chrome 140, macOS, 1440 × 1000
+    validations:
+      required: true
+  - type: dropdown
+    id: motion
+    attributes:
+      label: Motion preference
+      options:
+        - Full motion
+        - Paused in the site
+        - OS reduced motion
+        - Not relevant
+    validations:
+      required: true
+  - type: dropdown
+    id: audio
+    attributes:
+      label: Conversation state
+      options:
+        - On and playing
+        - On and waiting for first interaction
+        - Off
+        - Not relevant
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Safe supporting evidence
+      description: Add a screenshot or site-origin console message. Remove personal information and secrets.

@@ -26,22 +26,45 @@ The automated suite complements, but does not replace, the required real-Chrome 
 
 Run current production verification with `PLAYWRIGHT_BASE_URL=https://sherlock-cold-ember.netlify.app npm run test:e2e`. Add `PLAYWRIGHT_LIVE_FORM=1` for the single deliberate live-form proof.
 
-## Latest local baseline
+## Final local release baseline
 
-July 15, 2026 at 1:05 PM CDT:
+July 15, 2026:
 
-- Cinematic-audio coverage inside the complete run: 15 passed, 24 intentionally skipped duplicate desktop-only checks, 0 failed across 1440px, 390px, and 320px
-- Complete three-viewport regression suite: 33 passed, 42 intentional local skips (production-only or duplicate desktop checks), 0 failed
-- TypeScript, ESLint, Vinext build, Next.js build, rendered tests, live source-text verification, and production npm audit: passed; 0 production vulnerabilities
-- Dialogue-source live checks: 4 passed, proving all 5 primary source URLs resolve and all 7 credited excerpts occur in the linked public-domain text
+- Complete three-viewport regression suite: 87 checks enumerated; 35 passed,
+  52 intentional environment/viewport skips, and 0 failed at 1440px, 390px,
+  and 320px.
+- Final focused browser regression after the CodeQL hardening: 54 checks
+  enumerated; 20 passed, 34 intentional skips, and 0 failed in 2.2 minutes.
+- TypeScript, ESLint, Vinext build, Next.js build, 8/8 rendered behavior tests,
+  live source-text verification, and production npm audit passed with 0
+  production vulnerabilities.
+- The documentation/governance closeout added one byte-locked visual-provenance
+  regression; the complete maintained gate then passed 9/9 tests, both builds,
+  and the production audit without changing browser runtime code.
+- Dialogue-source live checks: 4/4 passed, proving all five primary source URLs
+  resolve and all seven credited excerpts occur in the linked public-domain
+  text.
 
-## Latest production baseline
+## Final production release baseline
 
-July 15, 2026 at 1:35 PM CDT:
+July 15, 2026 through the 5:44 PM CDT post-release drift audit:
 
-- Netlify three-viewport production suite: 37 passed, 38 intentional duplicate/local-only skips, 0 failed in 2.0 minutes
-- Controlled Netlify form proofs: automated submission `6a57cd1102c1404bf8ee69ed` and real-Chrome submission `6a57d0e95e5ef9757761ebbe` were both confirmed through the Forms API
-- Real Chrome: every primary desktop control and workflow was exercised, all five character conversations were sampled with live captions, and the responsive 375 x 812 view was checked with its index and sound mixer
-- Runtime health: 0 site-origin Chrome warnings/errors, 0 Playwright page/console failures, and 0 unexpected same-origin request failures
-- Production security: root, static asset, and 404 caching plus CSP, HSTS, clickjacking, MIME, referrer, permissions, and cross-origin headers passed
-- Private Sites parity: the exact runtime commit returned authenticated HTTP 200 with its hardened headers; the owner-only browser gate reached OpenAI MFA as designed, so private-runtime UI interaction is evidenced by exact-source parity and authenticated API smoke rather than a second Chrome journey
+- Full Netlify three-viewport suite: 87 checks enumerated; 40 passed, 47
+  intentional environment/viewport skips, and 0 failed in 5.6 minutes.
+- Exact-final deploy smoke: 15 checks enumerated; 5 passed, 10 intentional
+  viewport-only skips, and 0 failed in 22.7 seconds.
+- Post-release immutable-runtime check: 5 production checks passed, the one
+  opt-in live-form submission was intentionally skipped, and 0 failed. All 45
+  audio hashes, MIME types, and cache policies passed again.
+- Real Chrome: every visible primary desktop control and workflow, all five
+  automatic conversations, the off/on controls and mixer, the complete form,
+  and the responsive 375 × 812 view passed. Site-origin warnings/errors: 0.
+- The persisted real-Chrome form receipt is
+  `6a57ee9ced4a29c630336246`, record #8, at 3:33:32 PM CDT.
+- Production security: nine response policies, root/static/scene/404 caching,
+  media isolation, CSP, HSTS, clickjacking, MIME, referrer, permissions, and
+  cross-origin behavior passed.
+- Private Sites parity: version 13 and deployment
+  `appgdep_6a58097981108191aba5416bd0a483c3` identify the exact release commit;
+  owner-only access, authenticated routes, headers, media bytes, hashes, and
+  cache behavior passed.
