@@ -1,99 +1,133 @@
-# Release evidence — The Cold Ember v1.1.0
+# Release evidence — The Cold Ember v1.2.0
 
-This record covers the verified v1.1.0 runtime as of July 15, 2026 in America/Chicago. It contains no deployment credentials, cookies, personal email addresses, or private form contents.
-
-> Release state: the application runtime is verified on both production hosts from the same exact source commit. The final evidence-only commit, parity redeploys, final smoke checks, tag, and GitHub release are intentionally not claimed here; those closeout steps follow this record.
+This public record covers the cinematic-audio v1.2.0 application runtime
+verified on July 15, 2026 in America/Chicago. It intentionally contains no
+deployment credential, browser secret, private email address, or provider key.
 
 ## Release identity
 
 | Field | Verified value |
 | --- | --- |
-| Release candidate | `v1.1.0` |
-| Runtime source commit | `eec62187fc3a0254441192e0bb3f6d479dc2e467` |
-| Public source | `https://github.com/shanto12/sherlock-cold-ember` |
-| GitHub Actions | Run `29439165347` — success for the runtime commit |
-| Netlify production | `https://sherlock-cold-ember.netlify.app` — deploy `6a57cc1fed7c4dd459b3b8e0` |
-| Private Sites production | `https://the-cold-ember-casebook.shanto.chatgpt.site` — version 4 `appgprj_6a57a5a66324819181d4c4a018e4fd5f~appgver_28146451ea9c8191a6d50a4f5d2d565a`; deploy `appgdep_6a57cd040edc8191a330d6cc3d56338a` succeeded |
-| Runtime provenance | Netlify and Sites were published from the same exact runtime source commit above |
-| Evidence window | July 15, 2026 through 1:26:49 PM CDT |
+| Release | `v1.2.0` |
+| Verified application commit | `7ddcd9cede5e74a02a9f032c27663e76a3be17c2` |
+| Public source | https://github.com/shanto12/sherlock-cold-ember |
+| Feature and hardening PRs | #1 default-on cinematic audio; #2 static cache policy; #3 generated Sites routing guard; #4 verified Sites Worker cache adapter |
+| Exact-main GitHub Actions | Run `29450552670` — success; job `Lint, test, build, and audit`; 0 annotations |
+| Netlify production | https://sherlock-cold-ember.netlify.app — deploy `6a57f5d3dd7fdd0496d11e44` |
+| Netlify immutable deploy | https://6a57f5d3dd7fdd0496d11e44--sherlock-cold-ember.netlify.app |
+| Private Sites parity | https://the-cold-ember-casebook.shanto.chatgpt.site — version 11 `appgprj_6a57a5a66324819181d4c4a018e4fd5f~appgver_46e1015321b88191bbebc6b84812ed43`; deploy `appgdep_6a57f61d4abc8191aae71dabe33fb202` succeeded |
+| Source parity | Netlify deploy title and Sites version source both identify the exact verified commit above; local HEAD and `origin/main` matched |
+| Evidence window | July 15, 2026 through 4:32:54 PM CDT |
+
+The Netlify deployment was a direct production publish, so Netlify reports a
+null `commit_ref`. Provenance is established by its exact-SHA deploy title,
+the clean local checkout, `origin/main`, the successful exact-main CI run,
+and byte-identical canonical/immutable production responses.
 
 ## Enterprise release evidence matrix
 
-| Requirement | Status | Verification method | Current evidence |
+| Requirement | Status | Verification method | Current production evidence |
 | --- | --- | --- | --- |
-| Public GitHub source and CI | Pass | GitHub + GitHub Actions | Public repository is available; run `29439165347` succeeded for runtime SHA `eec62187fc3a0254441192e0bb3f6d479dc2e467` |
-| Locked install, lint, strict typecheck, and both production builds | Pass | Local release gate + CI | `npm run verify` completed cleanly, including lint, strict typecheck, Vinext build, Next production build, and repository tests |
-| Production dependency audit | Pass | `npm audit --omit=dev` via release gate | 0 vulnerabilities |
-| Local multi-viewport journey suite | Pass | Playwright | 33 passed, 42 intentionally skipped, 0 failed |
-| Deployed Netlify journey suite | Pass | Playwright against production URL | 37 passed, 38 intentionally skipped, 0 failed |
-| Dialogue quotation provenance | Pass | Source-text test + live primary-source requests | 4 tests passed; all 5 primary URLs resolved and all 7 credited lines were present in the linked texts |
-| Exact runtime deployed to both hosts | Pass | Git commit + deployment metadata | Netlify deploy and private Sites version 4 both trace to the same runtime source commit |
-| Source credential hygiene | Pass | Tracked-source scan + ignore review | No credential material was found in the intended public source; generated host state, logs, and local artifacts remain excluded |
-| Netlify production availability | Pass | API/HTTP + Playwright + real Chrome | Production route loaded and the complete deployed interaction journey passed |
-| Netlify security headers and CSP | Pass | Production response-header inspection | CSP and the expected browser protections were present, including HSTS, MIME sniffing prevention, frame denial, referrer policy, permissions policy, COOP, and CORP |
-| Netlify form delivery — automation | Pass | Playwright + Netlify backend/API | Submission `6a57cd1102c1404bf8ee69ed` was recorded at July 15, 2026, 1:10:25 PM CDT |
-| Netlify form delivery — real Chrome | Pass | Shanto's real Chrome profile + Netlify backend/API | Submission `6a57d0e95e5ef9757761ebbe` was recorded as record #5 at July 15, 2026, 1:26:49 PM CDT |
-| Desktop every-control pass | Pass | Shanto's real Chrome profile | Every visible primary control and workflow was activated; full control inventory is recorded below |
-| Desktop console health | Pass | Shanto's real Chrome profile | Site-origin console warnings: 0; site-origin console errors: 0 |
-| Responsive real-Chrome review | Pass | Shanto's real Chrome profile | A 375 × 812 capture verified the responsive layout with the chapter index, sound control, and mixer |
-| Responsive automated layouts | Pass | Local and production Playwright | Local suite covered 1440, 390, and 320 widths; deployed production journeys passed in the production suite |
-| Private Sites publish | Pass | Sites deployment API | Version 4 deploy `appgdep_6a57cd040edc8191a330d6cc3d56338a` completed successfully and remains owner-only |
-| Private Sites headers | Pass | Authenticated HTTP header smoke | Authenticated request returned HTTP 200 with CSP and the expected security headers |
-| Private Sites real-Chrome UI rerun | Limited | Shanto's real Chrome profile | Owner access gate and account choice were reached; MFA prevented the private UI journey from being rerun in real Chrome during this evidence window |
-| Application auth, login, logout | N/A | Architecture and UI inventory | The application has no app-level account system. The private Sites owner gate is host-level access, not application auth |
-| Password-manager behavior | N/A | DOM/control inventory | The application has no password fields or password workflow |
-| Backend runner jobs / task workers | N/A | Architecture review | The application has no runner, queue, cron, or background task workflow |
-| Applicable backend completion | Pass | Netlify backend/API | Both controlled form submissions were confirmed in Netlify's backend rather than inferred from browser success UI |
+| Public GitHub showcase | Pass | GitHub | Repository, source, tests, audio inventory, rights notice, provenance, and this evidence record are public; no secret is tracked |
+| Pull-request and CI release path | Pass | GitHub + GitHub Actions | PRs #1–#4 passed before merge; exact-main run `29450552670` succeeded with 0 annotations |
+| Locked install, lint, strict typecheck, rendered tests, and both production builds | Pass | Local release gate + CI | `npm run verify` passed; the final Sites adapter raised the rendered suite to 8/8 passing tests |
+| Production dependency audit | Pass | npm audit via local gate + CI | 0 production vulnerabilities |
+| Local multi-viewport journey suite | Pass | Playwright | 87 checks enumerated; 35 passed, 52 intentional environment/viewport skips, 0 failed at 1440, 390, and 320 widths |
+| Deployed Netlify journey suite | Pass | Playwright against the production URL | 87 checks enumerated; 40 passed, 47 intentional environment/viewport skips, 0 failed in 5.6 minutes |
+| Real Chrome final pass | Pass | Shanto's real Chrome profile | Full desktop control inventory, 375 × 812 mobile pass, exact-final default-on smoke, and site-origin console inspection completed |
+| Default-on conversation | Pass | SSR test + Playwright + real Chrome | Fresh production load exposes `Turn conversation off`; the first ordinary interaction starts the active scene without a dedicated audio CTA |
+| Scene-aware automatic playback | Pass | Playwright + real Chrome | All five index destinations reported their matching scene conversation as playing |
+| Visible conversation off/on | Pass | Real Chrome + Playwright | Header, persistent console, and mixer controls stopped and restarted the active scene truthfully |
+| Complete stop semantics | Pass | Playwright | Off clears dialogue, ambience, Foley, captions, timers, scheduled nodes, and suspended context state |
+| Cinematic audio inventory | Pass | Manifest/hash test + production HTTP | 45 fingerprinted MP3 files, 12,886,180 aggregate bytes, five scenes, five ambience loops, five masters, five dialogue/Foley stems, ten Foley effects, seven character voices, and twenty authored lines |
+| Audio quality gates | Pass | FFmpeg analysis + forced alignment | All five masters passed alignment, codec, loudness, and peak checks; dialogue ducking and clean scene transitions passed |
+| Runtime privacy | Pass | Production request monitoring + source scan | Browser made only same-origin self-hosted audio requests; no ElevenLabs, provider endpoint, provider voice ID, credential, or visitor data left the site |
+| Audio/cache integrity | Pass | Netlify and authenticated Sites HTTP | Representative MP3 was `audio/mpeg`, 721,650 bytes, SHA-256 `8234ba09ffb9e751b6818706e8ec27ffd52e046fb5d6f675fa87b30678dff1f2`, and immutable for one year on both hosts |
+| Streaming range behavior | Pass / host variance | Direct HTTP | Canonical Netlify returned `206`, `Accept-Ranges: bytes`, and the exact requested 1,024-byte range; private Sites normalized Range to a cached full `200` response |
+| Production route and media availability | Pass | Playwright + direct HTTP | Root, metadata routes, 404 recovery, scene imagery, and all 45 audio assets passed |
+| Desktop and mobile layout | Pass | Real Chrome + Playwright | 1440 desktop and 375 real-Chrome mobile captures passed; automated 390 and 320 layouts passed |
+| Console and page errors | Pass | Real Chrome + Playwright monitors | 0 site-origin warnings/errors in real Chrome; 0 relevant console errors, page errors, non-aborted failed requests, or unexpected same-origin HTTP failures in production automation |
+| Security headers and CSP | Pass | Direct production header inspection | Both hosts returned all eight required policies, including CSP with `media-src 'self'` and `script-src-attr 'none'`, HSTS, `autoplay=(self)`, frame denial, nosniff, referrer policy, COOP, and CORP |
+| Production form workflow | Pass | Real Chrome + Playwright + Netlify backend | Required-field validation, every field, consent, submit, success, and close passed; backend recorded real-Chrome submission `6a57ee9ced4a29c630336246` as record #8 at 3:33:32 PM CDT |
+| Application APIs/backend completion | Pass | Netlify backend/API | Form delivery was confirmed in Netlify's persisted backend, not inferred from success UI |
+| Private Sites publication | Pass | Sites deployment API + authenticated HTTP | Exact-source version 11 succeeded, owner-only access remained 1 user / 0 groups, root security passed, and exact audio bytes/hash/cache passed |
+| App auth, login, and logout | N/A | Architecture and UI inventory | The application has no app-level account system; the private Sites owner gate is host-level access |
+| Password-manager behavior | N/A | DOM and workflow inventory | There is no password field or password workflow |
+| Runner jobs, queue, cron, background tasks | N/A | Architecture review | The product has no runner, queue, cron, or background task workflow |
+| Credential hygiene | Pass | Key-pattern scan + Git inventory + GitHub security | No provider key, private key, `.env`, PEM, or secret file is tracked; secret scanning and push protection are enabled |
 
-## Real Chrome desktop control inventory
+Intentional Playwright skips are production-only, viewport-only, or
+opt-in-live-form boundaries. They are counted explicitly and are not failures.
+The final production suite does not create another live submission unless its
+dedicated environment flag is set. The remote-production profile uses one
+worker and a 180-second journey budget to avoid false timing failures under
+high local system load; local and CI verification retain two workers and a
+90-second journey budget.
 
-The following visible controls and workflows were exercised against Netlify production using Shanto's real Chrome profile:
+## Real Chrome control inventory
+
+The following controls were exercised against the deployed Netlify URL through
+Shanto's real Chrome profile:
 
 | Area | Controls and workflow verified | Result |
 | --- | --- | --- |
-| Global navigation | Wordmark/return, chapter index open/close, all five chapter destinations, previous/next scene navigation | Pass |
-| Motion and case state | Pause/resume motion, Case Notes open/close, persisted evidence, clear notes | Pass |
-| Cinematic sound | Header sound toggle, scene Hear/Stop controls, fixed sound console, mute/unmute, mixer open/close, mixer start/stop, volume controls, conversation playback, caption dismissal, provenance link | Pass |
-| Hero and opening scene | Begin inquiry, inspect evidence, Enter/Hear action | Pass |
-| Telegram and route | Telegram read/fold and the one-way route-clue reveal | Pass |
-| Inspection scene | Inspection light on/off; footprint, ash, blue glass, and brass latch evidence controls | Pass |
-| Reference books | All four book tabs | Pass |
-| Conclusion | All three conclusion choices, Holmes reveal, replay | Pass |
+| Global navigation | Wordmark return, index open/close, all five chapter destinations, previous/next scene navigation, footer return | Pass |
+| Motion and case state | Pause/resume motion, Case Notes open/close, seven recorded observations, clear notes | Pass |
+| Default-on conversation | Initial on state, first ordinary-interaction unlock, automatic playback in scenes 01–05, header off/on | Pass |
+| Sound console and mixer | Persistent off/on, mixer open/close, master/atmosphere/dialogue sliders, replay active scene, caption dismissal | Pass |
+| Hero and opening scene | Begin inquiry, inspect evidence | Pass |
+| Telegram and passage | Telegram read/fold, route clue, horse/hansom scene transition | Pass |
+| Inspection scene | Inspection light on/off; footprint, ash, blue glass, and brass latch controls | Pass |
+| Reference archive | All four book tabs and their matching panels | Pass |
+| Deduction | All three choices, Holmes reveal, replay case | Pass |
 | Field notes | All five disclosure controls | Pass |
-| Commission workflow | Both inquiry CTAs, dialog close paths, required-field validation, all form controls, consent, submit, success/close | Pass |
-| Footer | Footer return path | Pass |
+| Commission workflow | Both CTAs, both dialog close paths, required-field validation, all fields, project selector, consent, submit, success close | Pass |
+| Mobile 375 × 812 | Index, sound off/on, scene navigation, mixer, responsive artwork/copy/control composition | Pass |
 
-The designed 404 recovery route was verified in the deployed Playwright suite, not in the real-Chrome control inventory above.
+The real-Chrome log contained browser-extension warnings from a third-party
+wallet extension. Filtering to the production site origin returned zero
+warnings and zero errors; the extension messages are not application findings.
 
-## Audio, dialogue, and cinematic verification
+## Cinematic audio evidence
 
-| Requirement | Status | Verification method | Evidence |
-| --- | --- | --- | --- |
-| User-gesture audio start and explicit stop | Pass | Real Chrome + Playwright | Sound began only after interaction and stopped through the visible scene/global controls |
-| Five scene soundscapes and conversations | Pass | Playwright + real-Chrome control pass | Scene dialogue start/stop paths and soundscape controls completed without production failures |
-| Mixer and persisted volume behavior | Pass | Real Chrome + Playwright | Mixer, channel controls, mute, restart, and zero-volume caption-only behavior were exercised |
-| Caption and local speech fallback | Pass | Playwright | Captions remained available when speech was absent, failed, or disabled; active playback lifecycle and cancellation paths passed |
-| Hidden-page and navigation cleanup | Pass | Playwright | Timers, sources, speech, and scene playback were cancelled across visibility and navigation transitions |
-| Dialogue attribution | Pass | Live source verification | Seven canonical public-domain excerpts were checked against five linked primary Wikisource pages |
+| Requirement | Status | Evidence |
+| --- | --- | --- |
+| Original performances | Pass | Seven distinct non-celebrity Victorian character voices; no actor recording, clone, name, sample, or likeness |
+| Layered sound design | Pass | Rain, fire, telegram, paper, clock, room tone, footstep, glass, morning bell, horse, hoof rhythm, wet wheels, carriage creak, and wind are mixed by scene |
+| Canonical dialogue safety | Pass | Seven brief public-domain echoes are visibly source-linked; the surrounding case and dialogue are original |
+| Browser autoplay contract | Pass | Conversation preference is on by default; audible playback waits only for the first trusted ordinary interaction required by browser policy |
+| Accessibility | Pass | Timed speaker captions, dismiss control, reduced-motion independence, visibility cleanup, decode/play fallback, and device-voice fallback remain available |
+| Production isolation | Pass | ElevenLabs was used only offline; visitor browsers never contact it |
+| Secret storage | Pass | Provider credential is outside the repository and absent from every generated asset and production bundle |
 
-## Responsive, accessibility, and production safety
+## Responsive, accessibility, and safety disposition
 
-| Requirement | Status | Verification method | Evidence |
-| --- | --- | --- | --- |
-| Desktop and mobile composition | Pass | Real Chrome + Playwright | Desktop journey completed; real Chrome 375 × 812 capture and automated 390/320 layouts verified the responsive controls |
-| Keyboard and accessible state | Pass | Playwright + real Chrome | Navigation, dialogs, tabs, radios, form validation, pressed/expanded states, and caption live-region behavior were exercised |
-| Reduced-motion behavior | Pass | Playwright media emulation | Reduced-motion path retained the experience without continuous animation |
-| Console errors and warnings | Pass | Real Chrome + Playwright | Real Chrome reported 0 site-origin warnings and 0 site-origin errors; the automated production run completed with 0 failed tests |
-| Failed production workflows | Pass | Playwright + backend/API | No failed tested workflow; two independent form deliveries were confirmed in the backend |
-| Security policy | Pass | Header inspection | Netlify and authenticated private Sites responses supplied CSP and the expected browser security headers |
+- Keyboard, touch, and pointer journeys; dialogs; tabs; radios; sliders;
+  pressed/expanded states; form validation; caption live regions; and reduced
+  motion all passed.
+- The non-graphic mystery imagery, public-domain source notes, non-promotional
+  tobacco warning, unofficial-adaptation disclosure, and produced-audio reuse
+  restrictions remain visible and documented.
+- GitHub vulnerability alerts, Dependabot security updates, automated security
+  fixes, secret scanning, and push protection are enabled with zero open
+  Dependabot or secret-scanning alerts during this evidence window.
+- App-level authentication, password management, and background runners are
+  explicitly N/A, not silently treated as passed.
 
-## Limitations and closeout boundary
+## Closeout boundary
 
-- The private Sites application UI was not manually rerun after its MFA gate in real Chrome. Deployment success, exact source provenance, and authenticated HTTP 200/security headers are verified; the uncompleted private-host manual UI pass is explicitly limited.
-- App authentication, logout/login, password-manager behavior, and backend runner jobs do not exist in this product and are marked N/A rather than inferred as passing.
-- The v1.1.0 evidence-only commit, final parity redeploys, final smoke verification, immutable tag, and GitHub release occur after this document is committed. Their identifiers must be added to the GitHub release record; this document does not pre-claim them.
-- Skipped Playwright cases are intentional scope/viewport/environment skips. The recorded runs contain 0 failures.
+This record identifies the exact verified application commit. The commit
+containing this evidence file changes documentation only. After it merges, both
+hosts are rebuilt from that evidence commit and receive an exact-source smoke
+check; the immutable tag, final deployment identifiers, branch protection, and
+release closeout are recorded in the public GitHub `v1.2.0` release.
 
 ## Runtime verification disposition
 
-The v1.1.0 runtime evidence is **PASS** for the public Netlify production deployment and successful private Sites publication, with the private Sites real-Chrome UI rerun explicitly limited by MFA. Release closeout remains pending until the evidence-only commit is published, both hosts are brought to final source parity, final smoke checks and CI succeed, and the immutable `v1.1.0` tag/release are created.
+**PASS.** The Cold Ember v1.2.0 meets the applicable production release gates
+for default-on scene conversations, original cinematic sound, public source,
+Netlify production, private Sites parity, desktop/mobile interaction,
+accessibility, security, credential hygiene, and backend form delivery. The
+only documented host variance is that private Sites returns a full cached
+`200` for Range requests while canonical Netlify supplies byte-range
+`206`; playback and exact-byte integrity pass on both.

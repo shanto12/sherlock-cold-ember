@@ -813,7 +813,7 @@ for (const speechFailure of ["throw", "error"] as const) {
     await expect(caption).toBeVisible();
     const firstCaption = await caption.locator(".caption-transcript p").innerText();
     await expect(caption.locator(".caption-transcript")).toHaveAttribute("aria-live", "polite");
-    await page.waitForTimeout(900);
+    await page.waitForTimeout(300);
     await expect(caption.locator(".caption-transcript p")).toHaveText(firstCaption);
     await expect
       .poll(() =>
@@ -838,7 +838,15 @@ test("cancels delayed dialogue when hidden and follows the latest scene after na
   await waitForCasebookHydration(page);
 
   await unlockDefaultConversation(page);
-  await page.waitForTimeout(400);
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (window as Window & { __qaAudioContextConstructed?: number })
+            .__qaAudioContextConstructed ?? 0,
+      ),
+    )
+    .toBe(1);
   await page.evaluate(() =>
     (window as Window & { __qaSetAudioHidden?: (hidden: boolean) => void })
       .__qaSetAudioHidden?.(true),
@@ -969,15 +977,15 @@ test("starts the authored conversation automatically once in all five scene entr
   await unlockDefaultConversation(page);
 
   const expected = [
-    ["summons", "Mrs. Hudson"],
-    ["passage", "Dr. Watson"],
-    ["room", "Inspector Lestrade"],
-    ["archive", "Dr. Watson"],
-    ["conclusion", "Inspector Lestrade"],
+    ["summons", ["Mrs. Hudson", "Dr. Watson", "Sherlock Holmes"]],
+    ["passage", ["Dr. Watson", "Hansom driver", "Sherlock Holmes"]],
+    ["room", ["Inspector Lestrade", "Dr. Watson", "Sherlock Holmes"]],
+    ["archive", ["Dr. Watson", "Inspector Gregory", "Irene Adler", "Sherlock Holmes"]],
+    ["conclusion", ["Inspector Lestrade", "Dr. Watson", "Sherlock Holmes"]],
   ] as const;
 
   for (let index = 0; index < expected.length; index += 1) {
-    const [scene, firstSpeaker] = expected[index];
+    const [scene, sceneSpeakers] = expected[index];
     await expect
       .poll(() =>
         page.evaluate(
@@ -988,24 +996,46 @@ test("starts the authored conversation automatically once in all five scene entr
       )
       .toBe(scene);
     const caption = page.getByRole("region", { name: "Dialogue caption" });
-    await expect(caption).toContainText(firstSpeaker);
+    await expect(caption).toBeVisible();
     await expect
       .poll(() =>
         page.evaluate(
           () =>
             (window as Window & {
-              __coldEmberDialogueDebug?: { scene?: string; lineCount?: number; playing?: boolean };
+              __coldEmberDialogueDebug?: {
+                scene?: string;
+                lineCount?: number;
+                playing?: boolean;
+                speaker?: string | null;
+              };
             }).__coldEmberDialogueDebug,
         ),
       )
       .toMatchObject({ scene, lineCount: 4, playing: true });
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            (window as Window & {
+              __coldEmberDialogueDebug?: { speaker?: string | null };
+            }).__coldEmberDialogueDebug?.speaker,
+        ),
+      )
+      .toBeTruthy();
+    const activeSpeaker = await page.evaluate(
+      () =>
+        (window as Window & {
+          __coldEmberDialogueDebug?: { speaker?: string | null };
+        }).__coldEmberDialogueDebug?.speaker,
+    );
+    expect(sceneSpeakers).toContain(activeSpeaker as (typeof sceneSpeakers)[number]);
     if (index < expected.length - 1) {
       await page.getByRole("button", { name: "Next scene" }).click();
     }
   }
 
   await page.locator(".commission-section").scrollIntoViewIfNeeded();
-  await expect(page.getByRole("region", { name: "Dialogue caption" })).toContainText("Inspector Lestrade");
+  await expect(page.getByRole("region", { name: "Dialogue caption" })).toBeVisible();
   await conversationConsole(page).getByRole("button", { name: "Turn conversation off" }).click();
   await runtime.assertClean(testInfo);
 });

@@ -1,6 +1,6 @@
 # Cinematic audio v1.2 specification
 
-Status: implementation and release verification in progress
+Status: released and verified on July 15, 2026
 
 ## Audience promise
 

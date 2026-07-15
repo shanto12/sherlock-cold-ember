@@ -6,10 +6,10 @@ const baseURL = externalBaseUrl ?? "http://localhost:3000";
 export default defineConfig({
   testDir: "./tests/e2e",
   fullyParallel: true,
-  timeout: 90_000,
+  timeout: externalBaseUrl ? 180_000 : 90_000,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 2 : 0,
-  workers: 2,
+  workers: externalBaseUrl ? 1 : 2,
   reporter: [
     ["line"],
     ["html", { outputFolder: "output/playwright/report", open: "never" }],
