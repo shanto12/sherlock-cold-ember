@@ -1,6 +1,6 @@
 # THE COLD EMBER — Master Plan
 
-Status: phases 1–8 complete; phase 9 targets v1.3.0
+Status: phases 1–9 complete; v1.3.0 released and verified
 Setting: London, winter 1895
 Format: an original Sherlock Holmes moving casebook in five observations
 
@@ -143,9 +143,11 @@ Deliverables:
 
 ## Completion rule
 
-Met for v1.2.0. The public Netlify URL, immutable GitHub source and release,
+Met for v1.3.0. The public Netlify URL, immutable GitHub source and release,
 successful CI and CodeQL runs, private Sites parity version, every-control real
 Chrome pass, responsive/accessibility verification, persisted live form
 submission, route/header checks, media hashes, and evidence matrix agree on the
 same runtime commit. Final identifiers are recorded in
+[`release-evidence-v1.3.0.md`](./release-evidence-v1.3.0.md). The v1.2.0
+cinematic-audio baseline remains preserved in
 [`release-evidence.md`](./release-evidence.md).

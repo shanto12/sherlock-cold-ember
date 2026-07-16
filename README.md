@@ -1,15 +1,15 @@
 # The Cold Ember
 
 [![Release quality](https://github.com/shanto12/sherlock-cold-ember/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/shanto12/sherlock-cold-ember/actions/workflows/ci.yml)
-[![CodeQL](https://github.com/shanto12/sherlock-cold-ember/actions/workflows/dynamic/github-code-scanning/codeql/badge.svg?branch=main)](https://github.com/shanto12/sherlock-cold-ember/actions/runs/29455183310)
+[![CodeQL](https://github.com/shanto12/sherlock-cold-ember/actions/workflows/dynamic/github-code-scanning/codeql/badge.svg?branch=main)](https://github.com/shanto12/sherlock-cold-ember/actions/runs/29467832924)
 [![Netlify Status](https://api.netlify.com/api/v1/badges/de6470c5-d6f9-4e1c-b436-3d6e1f5648d8/deploy-status)](https://app.netlify.com/projects/sherlock-cold-ember/deploys)
-[![Latest release](https://img.shields.io/github/v/release/shanto12/sherlock-cold-ember?display_name=tag&sort=semver)](https://github.com/shanto12/sherlock-cold-ember/releases/tag/v1.2.0)
+[![Latest release](https://img.shields.io/github/v/release/shanto12/sherlock-cold-ember?display_name=tag&sort=semver)](https://github.com/shanto12/sherlock-cold-ember/releases/tag/v1.3.0)
 
 ![The Cold Ember — A Sherlock Holmes Moving Casebook](./public/og.png)
 
 **The Cold Ember** is an original, interactive Sherlock Holmes case set in London during the winter of 1895. It treats the browser like a moving casebook: visitors follow a telegram from Baker Street, ride through gaslit streets in a period-correct hansom, inspect a bindery crime scene, cross-reference evidence, and test a conclusion.
 
-[View the production experience](https://sherlock-cold-ember.netlify.app) · [Open the immutable v1.2.0 release](https://github.com/shanto12/sherlock-cold-ember/releases/tag/v1.2.0) · [Read the master plan](./docs/master-plan.md) · [Review final release evidence](./docs/release-evidence.md) · [Audit dialogue provenance](./docs/dialogue-sources.md) · [Inspect cinematic audio QA](./scripts/audio/PROVENANCE.md) · [Trace visual assets](./docs/visual-assets.md) · [Read the asset notice](./ASSET-NOTICE.md)
+[View the production experience](https://sherlock-cold-ember.netlify.app) · [Open the immutable v1.3.0 release](https://github.com/shanto12/sherlock-cold-ember/releases/tag/v1.3.0) · [Read the master plan](./docs/master-plan.md) · [Review v1.3.0 release evidence](./docs/release-evidence-v1.3.0.md) · [Audit dialogue provenance](./docs/dialogue-sources.md) · [Inspect cinematic audio QA](./scripts/audio/PROVENANCE.md) · [Trace visual assets](./docs/visual-assets.md) · [Read the asset notice](./ASSET-NOTICE.md)
 
 ## What makes it distinctive
 
@@ -56,7 +56,7 @@ Run the full local release gate:
 npm run verify
 ```
 
-The release gate covers linting, strict TypeScript checks, rendered behavior tests, the Vinext/Sites build, the Next.js/Netlify build, and the production-only npm audit. Playwright additionally proves that conversation is armed by default but remains browser-gesture locked, the first ordinary interaction starts the active scene, the off preference persists, all five masters and captions transition correctly at all three release widths, hidden tabs release scheduled work, and stopping sound clears every player, node, and timer. Final v1.2.0 proof—including real Chrome, responsive, form-delivery, console, network, route, CSP, header, CI, CodeQL, and exact deployment checks—is recorded in [`docs/release-evidence.md`](./docs/release-evidence.md).
+The release gate covers linting, strict TypeScript checks, rendered behavior tests, the Vinext/Sites build, the Next.js/Netlify build, and the production-only npm audit. Playwright additionally proves that conversation is armed by default but remains browser-gesture locked, the first ordinary interaction starts the active scene, the off preference persists, all five masters and captions transition correctly at all three release widths, hidden tabs release scheduled work, stopping sound clears every player, node, and timer, and every ink-glass surface preserves opaque text across responsive and accessibility editions. Final v1.3.0 proof—including real Chrome, responsive, form-delivery, console, network, route, CSP, header, CI, CodeQL, and exact deployment checks—is recorded in [`docs/release-evidence-v1.3.0.md`](./docs/release-evidence-v1.3.0.md). The historical v1.2.0 record remains in [`docs/release-evidence.md`](./docs/release-evidence.md).
 
 ## Release architecture
 
