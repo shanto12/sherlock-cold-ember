@@ -355,6 +355,19 @@ test("persists the visitor's motion choice and honours reduced motion", async ({
       { message: "reduced-motion mode should settle without running animations" },
     )
     .toBe(0);
+  const reducedMotionSurface = await page.evaluate(() => {
+    const root = getComputedStyle(document.documentElement);
+    const copy = document.querySelector<HTMLElement>(".scene-copy");
+    const copyStyle = copy ? getComputedStyle(copy) : null;
+    return {
+      strongAlpha: Number.parseFloat(root.getPropertyValue("--story-glass-strong")),
+      opacity: copyStyle ? Number.parseFloat(copyStyle.opacity) : 0,
+      backdropFilter: copyStyle?.backdropFilter ?? "missing",
+    };
+  });
+  expect(reducedMotionSurface.strongAlpha).toBeGreaterThanOrEqual(0.8);
+  expect(reducedMotionSurface.opacity).toBe(1);
+  expect(reducedMotionSurface.backdropFilter).toBe("none");
   await page.getByRole("button", { name: /Inspect the evidence/i }).click();
   const reducedScrollBehaviors = await page.evaluate(
     () =>

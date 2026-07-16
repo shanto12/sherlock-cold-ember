@@ -14,6 +14,7 @@
 ## What makes it distinctive
 
 - Five cinematic, full-page observations with original artwork and a cold-cobalt/gas-flame visual system
+- Translucent story and investigation surfaces that keep the fixed scene art visible while the case scrolls, with denser mobile, reduced-motion, and increased-contrast fallbacks
 - Bounded CSS and Canvas motion for rain, smoke, gaslight, cab rhythm, drifting pages, and deduction lines
 - Five default-on, scene-aware cinematic masters with rain, fire, hansom rhythms, horses, clocks, paper, room tone, Foley, and responsive clue cues
 - Original Holmes, Watson, Lestrade, Gregory, Irene Adler, Mrs. Hudson, and hansom-driver performances produced offline with synchronized captions

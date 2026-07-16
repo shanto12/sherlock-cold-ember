@@ -13,6 +13,18 @@
   --ember: #f04422;
   --line: rgba(194, 232, 236, 0.25);
   --line-warm: rgba(242, 163, 58, 0.44);
+  --story-glass-strong: 0.68;
+  --story-glass-mid: 0.46;
+  --story-glass-edge: 0.07;
+  --story-panel-soft: 0.54;
+  --story-panel: 0.72;
+  --story-panel-strong: 0.8;
+  --story-panel-active: 0.84;
+  --story-section: 0.72;
+  --story-section-strong: 0.88;
+  --story-commission-strong: 0.86;
+  --story-commission-edge: 0.8;
+  --story-muted: #d8d1c5;
   --header-height: 5.4rem;
   color-scheme: dark;
 }
@@ -462,9 +474,19 @@ a {
   align-self: center;
   max-width: 42rem;
   padding: clamp(1.15rem, 2.4vw, 2.4rem);
-  background: linear-gradient(115deg, rgba(4, 10, 12, 0.92), rgba(4, 10, 12, 0.7) 68%, rgba(4, 10, 12, 0.12));
+  background: linear-gradient(
+    115deg,
+    rgb(4 10 12 / var(--story-glass-strong)),
+    rgb(4 10 12 / var(--story-glass-mid)) 62%,
+    rgb(4 10 12 / var(--story-glass-edge))
+  );
   border-left: 1px solid var(--line-warm);
-  backdrop-filter: blur(6px);
+  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.12);
+  backdrop-filter: blur(2.5px) saturate(1.06);
+}
+
+.scene-copy :where(.eyebrow, h1, h2, p) {
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.68);
 }
 
 .scene-copy-left { grid-column: 2 / 12; }
@@ -537,7 +559,7 @@ a {
 .intro-line,
 .scene-copy > p:not(.eyebrow):not(.scene-statement):not(.hero-deck):not(.motion-hint) {
   max-width: 36rem;
-  color: var(--bone-dim);
+  color: var(--story-muted);
   font-size: clamp(1rem, 1.3vw, 1.18rem);
 }
 
@@ -631,8 +653,8 @@ a {
   padding: 1.15rem;
   border-top: 1px solid var(--line-warm);
   border-bottom: 1px solid var(--line);
-  background: rgba(6, 9, 10, 0.84);
-  backdrop-filter: blur(9px);
+  background: rgb(6 9 10 / var(--story-panel));
+  backdrop-filter: blur(4px) saturate(1.05);
 }
 
 .panel-rule {
@@ -706,7 +728,7 @@ a {
   margin-top: 0.5rem;
   padding: 0.65rem 0.8rem;
   border: 1px solid var(--line);
-  background: rgba(6, 9, 10, 0.62);
+  background: rgb(6 9 10 / var(--story-panel-soft));
   color: var(--bone-dim);
   cursor: pointer;
   font-family: var(--font-mono), monospace;
@@ -786,8 +808,8 @@ a {
   margin-bottom: 2rem;
   padding: 1rem 0 1rem 1rem;
   border-left: 1px solid var(--line);
-  background: rgba(6, 9, 10, 0.62);
-  color: var(--bone-dim);
+  background: rgb(6 9 10 / var(--story-panel-soft));
+  color: var(--story-muted);
   font-family: var(--font-mono), monospace;
   font-size: 0.6rem;
   letter-spacing: 0.07em;
@@ -830,7 +852,7 @@ a {
   align-content: space-between;
   gap: 0.4rem 0.85rem;
   padding: 1rem;
-  background: rgba(5, 13, 16, 0.94);
+  background: rgb(5 13 16 / var(--story-panel-strong));
   color: var(--bone);
   text-align: left;
   cursor: pointer;
@@ -839,7 +861,7 @@ a {
 
 .clue-button:hover,
 .clue-button.is-observed {
-  background: rgba(12, 48, 57, 0.95);
+  background: rgb(12 48 57 / var(--story-panel-active));
   box-shadow: inset 3px 0 0 var(--gas);
 }
 
@@ -869,7 +891,7 @@ a {
 .observation-readout {
   min-height: 15rem;
   padding: clamp(1.25rem, 2.3vw, 2.2rem);
-  background: rgba(6, 9, 10, 0.96);
+  background: rgb(6 9 10 / var(--story-panel-strong));
 }
 
 .observation-readout > span,
@@ -896,7 +918,7 @@ a {
 .observation-readout p,
 .book-panel p,
 .final-deduction p {
-  color: var(--bone-dim);
+  color: var(--story-muted);
   font-size: 1rem;
 }
 
@@ -919,8 +941,8 @@ a {
   min-height: 24rem;
   margin-bottom: 2rem;
   border: 1px solid var(--line);
-  background: rgba(6, 9, 10, 0.94);
-  backdrop-filter: blur(8px);
+  background: rgb(6 9 10 / var(--story-panel));
+  backdrop-filter: blur(3px) saturate(1.05);
 }
 
 .book-tabs {
@@ -970,7 +992,7 @@ a {
   padding: clamp(1.4rem, 2.8vw, 3rem);
   background:
     linear-gradient(135deg, rgba(233, 226, 213, 0.04), transparent 55%),
-    #071114;
+    rgb(7 17 20 / var(--story-panel-strong));
 }
 
 .book-panel::before,
@@ -1040,8 +1062,8 @@ a {
   margin-bottom: 2rem;
   padding: clamp(1.4rem, 2.8vw, 2.7rem);
   border: 1px solid var(--line);
-  background: rgba(5, 12, 14, 0.94);
-  backdrop-filter: blur(10px);
+  background: rgb(5 12 14 / var(--story-panel));
+  backdrop-filter: blur(3px) saturate(1.05);
 }
 
 .conclusion-console fieldset {
@@ -1502,9 +1524,9 @@ a {
   align-items: center;
   gap: 1rem;
   padding: 0.4rem 0.5rem;
-  background: rgba(6, 9, 10, 0.82);
+  background: rgb(6 9 10 / var(--story-panel));
   border: 1px solid rgba(194, 232, 236, 0.14);
-  backdrop-filter: blur(12px);
+  backdrop-filter: blur(7px) saturate(1.06);
 }
 
 .scene-rail button {
@@ -1553,7 +1575,15 @@ a {
 .case-footer {
   position: relative;
   z-index: 4;
-  background: var(--ink);
+}
+
+.field-notes,
+.case-footer {
+  background: linear-gradient(
+    180deg,
+    rgb(6 9 10 / var(--story-section-strong)),
+    rgb(6 9 10 / var(--story-section))
+  );
 }
 
 .field-notes {
@@ -1581,8 +1611,12 @@ a {
 
 .section-intro > p:last-child {
   max-width: 30rem;
-  color: var(--bone-dim);
+  color: var(--story-muted);
   font-size: 1.05rem;
+}
+
+.section-intro :where(h2, p) {
+  text-shadow: 0 2px 22px rgba(0, 0, 0, 0.72);
 }
 
 .field-note-grid {
@@ -1620,7 +1654,7 @@ a {
 }
 
 .field-note-grid p {
-  color: var(--bone-dim);
+  color: var(--story-muted);
 }
 
 .faq-list {
@@ -1674,8 +1708,13 @@ a {
   padding: clamp(6rem, 11vw, 12rem) clamp(1.25rem, 8vw, 9rem);
   overflow: hidden;
   background:
-    radial-gradient(circle at 76% 40%, rgba(242, 163, 58, 0.24), transparent 24%),
-    linear-gradient(135deg, #092630, #071215 56%, #130a08);
+    radial-gradient(circle at 76% 40%, rgba(242, 163, 58, 0.2), transparent 24%),
+    linear-gradient(
+      135deg,
+      rgb(9 38 48 / var(--story-commission-strong)),
+      rgb(7 18 21 / var(--story-section)) 56%,
+      rgb(19 10 8 / var(--story-commission-edge))
+    );
 }
 
 .commission-section::after {
@@ -1699,7 +1738,7 @@ a {
 .commission-section > p:not(.eyebrow) {
   max-width: 42rem;
   margin: 2rem 0;
-  color: var(--bone-dim);
+  color: var(--story-muted);
   font-size: 1.12rem;
 }
 
@@ -2078,7 +2117,20 @@ a {
 }
 
 @media (max-width: 860px) {
-  :root { --header-height: 4.7rem; }
+  :root {
+    --header-height: 4.7rem;
+    --story-glass-strong: 0.9;
+    --story-glass-mid: 0.84;
+    --story-glass-edge: 0.84;
+    --story-panel-soft: 0.84;
+    --story-panel: 0.9;
+    --story-panel-strong: 0.94;
+    --story-panel-active: 0.94;
+    --story-section: 1;
+    --story-section-strong: 1;
+    --story-commission-strong: 0.96;
+    --story-commission-edge: 0.94;
+  }
 
   .cinematic-stage,
   .ambience {
@@ -2207,7 +2259,18 @@ a {
     max-width: none;
     margin: 0;
     padding: 1.35rem 1rem;
-    background: linear-gradient(110deg, rgba(9, 38, 48, 0.4), transparent);
+    background: linear-gradient(
+      110deg,
+      rgb(9 38 48 / var(--story-glass-strong)),
+      rgb(6 9 10 / var(--story-glass-mid))
+    );
+    box-shadow: none;
+    backdrop-filter: none;
+  }
+
+  .telegram-panel,
+  .book-index,
+  .conclusion-console {
     backdrop-filter: none;
   }
 
@@ -2529,8 +2592,30 @@ a {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  :root {
+    --story-glass-strong: 0.82;
+    --story-glass-mid: 0.72;
+    --story-glass-edge: 0.5;
+    --story-panel-soft: 0.78;
+    --story-panel: 0.86;
+    --story-panel-strong: 0.9;
+    --story-panel-active: 0.92;
+    --story-section: 0.84;
+    --story-section-strong: 0.9;
+    --story-commission-strong: 0.9;
+    --story-commission-edge: 0.88;
+  }
+
   html {
     scroll-behavior: auto;
+  }
+
+  .scene-copy,
+  .telegram-panel,
+  .book-index,
+  .conclusion-console,
+  .scene-rail {
+    backdrop-filter: none;
   }
 
   *,
@@ -2543,11 +2628,46 @@ a {
   }
 }
 
+@media (max-width: 860px) and (prefers-reduced-motion: reduce) {
+  :root {
+    --story-glass-strong: 0.9;
+    --story-glass-mid: 0.84;
+    --story-glass-edge: 0.84;
+    --story-panel-soft: 0.84;
+    --story-panel: 0.9;
+    --story-panel-strong: 0.94;
+    --story-panel-active: 0.94;
+    --story-section: 1;
+    --story-section-strong: 1;
+    --story-commission-strong: 0.96;
+    --story-commission-edge: 0.94;
+  }
+}
+
 @media (prefers-contrast: more) {
   :root {
     --line: rgba(194, 232, 236, 0.55);
     --bone-dim: #ded7ca;
     --frost-dim: #b5dce0;
+    --story-glass-strong: 0.96;
+    --story-glass-mid: 0.92;
+    --story-glass-edge: 0.78;
+    --story-panel-soft: 0.94;
+    --story-panel: 0.96;
+    --story-panel-strong: 0.98;
+    --story-panel-active: 0.98;
+    --story-section: 0.98;
+    --story-section-strong: 0.98;
+    --story-commission-strong: 0.98;
+    --story-commission-edge: 0.98;
+  }
+
+  .scene-copy,
+  .telegram-panel,
+  .book-index,
+  .conclusion-console,
+  .scene-rail {
+    backdrop-filter: none;
   }
 }
 
