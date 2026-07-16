@@ -1,6 +1,6 @@
 # THE COLD EMBER — Master Plan
 
-Status: phases 1–8 complete; immutable v1.2.0 released July 15, 2026
+Status: phases 1–8 complete; phase 9 targets v1.3.0
 Setting: London, winter 1895
 Format: an original Sherlock Holmes moving casebook in five observations
 
@@ -115,6 +115,23 @@ Deliverables:
   performance provenance, and recruiter-safe public documentation
 - A new full GitHub, CI, Netlify, Sites, Playwright, real-Chrome, mobile,
   security-header, network, console, and evidence-matrix release proof
+
+## Phase 9 — Translucent story surfaces (v1.3.0)
+
+Deliverables:
+
+- Replace opaque chapter backplates with restrained ink-glass gradients so the
+  fixed cinematic artwork remains visible while the case scrolls
+- Carry the treatment through the telegram, evidence, reference-book,
+  deduction, field-note, commission, and scene-navigation surfaces without
+  fading text glyphs or controls
+- Preserve fully opaque text plus brighter muted copy and restrained shadow for
+  legibility over the brightest and darkest scene regions
+- Use denser no-blur treatments on mobile, reduced-motion, and
+  increased-contrast editions
+- Lock the visual contract with source-level and three-viewport browser
+  regressions, then repeat the full GitHub, CI, Netlify, Sites, real-Chrome,
+  security, console, network, form, and evidence-matrix release proof
 
 ## Historical boundaries
 
