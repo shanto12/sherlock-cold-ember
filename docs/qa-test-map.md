@@ -21,12 +21,13 @@ This map describes the production-oriented Playwright coverage. Browser artifact
 | Audio secret/network hygiene | No secret pattern in tracked files, build output, or rendered HTML; `media-src 'self'`; `autoplay=(self)`; no browser request to ElevenLabs or another audio origin; every audio asset returns 200 with an audio MIME type |
 | Live Netlify form | Opt-in production submission with `PLAYWRIGHT_LIVE_FORM=1` |
 | Responsive safety | Full-section scrolling, decoded scene art, and horizontal-overflow measurements at all three viewports |
+| Ink-glass surfaces | Source-token contract plus desktop panel gradients, fully opaque text, bounded widths, five decoded mobile images, copy/image ordering, no overlap, reduced-motion density, and increased-contrast density |
 
 The automated suite complements, but does not replace, the required real-Chrome production pass.
 
 Run current production verification with `PLAYWRIGHT_BASE_URL=https://sherlock-cold-ember.netlify.app npm run test:e2e`. Add `PLAYWRIGHT_LIVE_FORM=1` for the single deliberate live-form proof.
 
-## Final local release baseline
+## Final v1.2.0 local release baseline
 
 July 15, 2026:
 
@@ -47,7 +48,7 @@ July 15, 2026:
   resolve and all seven credited excerpts occur in the linked public-domain
   text.
 
-## Final production release baseline
+## Final v1.2.0 production release baseline
 
 July 15, 2026 through the 5:44 PM CDT post-release drift audit:
 
@@ -70,3 +71,40 @@ July 15, 2026 through the 5:44 PM CDT post-release drift audit:
   `appgdep_6a58097981108191aba5416bd0a483c3` identify the exact release commit;
   owner-only access, authenticated routes, headers, media bytes, hashes, and
   cache behavior passed.
+
+## Final v1.3.0 local release baseline
+
+July 15, 2026:
+
+- `npm run verify` passed ESLint, strict TypeScript, Vinext and Next.js
+  production builds, 13/13 maintained source/render tests, and the production
+  audit with 0 vulnerabilities.
+- The complete three-viewport Playwright suite enumerated 90 checks: 38 passed,
+  52 intentional environment/viewport skips, and 0 failed in 2.7 minutes.
+- The repeated targeted ink-glass browser suite passed 18/18 across 1440px,
+  390px, and 320px; the final independent review found no blocker.
+
+## Final v1.3.0 production release baseline
+
+July 15, 2026 through the 10:21 PM CDT live-host audit:
+
+- Canonical Netlify Playwright enumerated 90 checks: 43 passed, 47 intentional
+  environment/viewport skips, and 0 failed in 6.1 minutes.
+- The immutable deploy's targeted translucency smoke passed 3/3. The Netlify
+  deploy-preview toolbar emitted its own frame and device-permission messages;
+  those preview-only platform messages did not occur on canonical production.
+- Real Chrome verified every visible primary desktop control and workflow,
+  every scene, default-on conversation, off/on, mixer, deduction, disclosures,
+  complete form flow, footer return, index close, and responsive 390 × 844
+  layout. Site-origin warnings/errors: 0. The six recorded warnings came from
+  the installed wallet extension and are identified separately.
+- Netlify persisted the synthetic verification inquiry as receipt
+  `6a584c9d931816d075094dae`, record #9, at 10:14:37 PM CDT.
+- Netlify deploy `6a5848ba955ac500087d319f` and Sites version 14
+  `appgprj_6a57a5a66324819181d4c4a018e4fd5f~appgver_1bd1e44bf6988191a950e75c279188da`
+  both identify runtime `edfa98b706c72c12c6759383e6d0200cfcd7392b`;
+  Sites deployment `appgdep_6a584a1d70c08191af8e333eb970f2ba`
+  succeeded.
+- Canonical and immutable HTML, robots, sitemap, 404, scene image, and audio
+  hashes matched. Netlify byte-range playback returned `206`; representative
+  Sites audio matched the checked-in SHA-256 exactly.

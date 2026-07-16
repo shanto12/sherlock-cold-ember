@@ -1,6 +1,7 @@
 # Translucent story surfaces — v1.3 design contract
 
-Status: implementation and release verification in progress
+Status: released and verified. Runtime and immutable tag target:
+`edfa98b706c72c12c6759383e6d0200cfcd7392b`.
 
 ## Intent
 
@@ -41,5 +42,18 @@ glyph, control, border, and focus indicator fully opaque.
   gradients with fully opaque content and bounded widths.
 - Mobile browser regression asserts all five inline images decode, every copy
   panel follows its image without overlap, and text opacity remains one.
-- The full release gate and production verification remain required before the
-  v1.3.0 tag is published.
+- The full release gate, protected GitHub workflows, Netlify and Sites
+  deployments, production verification, and exact tag-target check passed.
+
+## Release result
+
+- The maintained gate passed 13/13 source/render tests, both production builds,
+  and the production audit with 0 vulnerabilities.
+- Local Playwright enumerated 90 checks: 38 passed, 52 intentional skips, and 0
+  failed. Canonical production enumerated 90 checks: 43 passed, 47 intentional
+  skips, and 0 failed.
+- Real Chrome passed desktop and 390 × 844 mobile layouts and controls. The
+  desktop chapter copy resolved to a directional translucent gradient with a
+  restrained 2.5px backdrop blur; all copy text remained at opacity `1`.
+- The complete evidence matrix is recorded in
+  [`release-evidence-v1.3.0.md`](./release-evidence-v1.3.0.md).
